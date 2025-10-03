@@ -1,0 +1,169 @@
+# Quick Fix for Nginx Configuration Error
+# Run these commands on your server to fix the nginx structure
+
+# 1. Backup current nginx.conf
+sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
+
+# 2. Create correct nginx.conf structure
+sudo tee /etc/nginx/nginx.conf > /dev/null << 'EOF'
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 768;
+}
+
+http {
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 4096;
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml+rss
+        application/atom+xml
+        image/svg+xml;
+
+    include /etc/nginx/conf.d/*.conf;
+    include /etc/nginx/sites-enabled/*;
+}
+EOF
+
+# 3. Create the site configuration in sites-available
+sudo tee /etc/nginx/sites-available/maidsofcyfair > /dev/null << 'EOF'
+# Redirect HTTP → HTTPS
+server {
+    listen 80;
+    server_name foodsensescale.tech www.foodsensescale.tech;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS server
+server {
+    listen 443 ssl http2;
+    server_name foodsensescale.tech www.foodsensescale.tech;
+
+    ssl_certificate /etc/letsencrypt/live/foodsensescale.tech/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/foodsensescale.tech/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Root directory for your React app build files
+    root /var/www/maidsofcyfair;
+    index index.html;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Handle API requests - proxy to your backend
+    location /api/ {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        
+        # CORS headers for API requests
+        add_header Access-Control-Allow-Origin *;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
+        add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization";
+        
+        # Handle preflight requests
+        if ($request_method = 'OPTIONS') {
+            add_header Access-Control-Allow-Origin *;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
+            add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization";
+            add_header Access-Control-Max-Age 1728000;
+            add_header Content-Type 'text/plain; charset=utf-8';
+            add_header Content-Length 0;
+            return 204;
+        }
+    }
+
+    # Handle health check endpoint
+    location /health {
+        proxy_pass http://localhost:8000/health;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Handle static assets with proper caching
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header Access-Control-Allow-Origin *;
+        try_files $uri =404;
+    }
+
+    # Handle React Router - serve index.html for all routes
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Error pages
+    error_page 404 /index.html;
+    error_page 500 502 503 504 /50x.html;
+    
+    location = /50x.html {
+        root /usr/share/nginx/html;
+    }
+}
+EOF
+
+# 4. Enable the site
+sudo ln -sf /etc/nginx/sites-available/maidsofcyfair /etc/nginx/sites-enabled/
+
+# 5. Disable default site if it exists
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# 6. Create React app directory
+sudo mkdir -p /var/www/maidsofcyfair
+
+# 7. Set proper permissions
+sudo chown -R www-data:www-data /var/www/maidsofcyfair
+sudo chmod -R 755 /var/www/maidsofcyfair
+
+# 8. Test nginx configuration
+sudo nginx -t
+
+# 9. If test passes, reload nginx
+sudo systemctl reload nginx
+
+# 10. Build and deploy React app
+cd ~/maidsofcyfair.new/frontend
+npm run build
+sudo cp -r build/* /var/www/maidsofcyfair/
+sudo chown -R www-data:www-data /var/www/maidsofcyfair
+
+# 11. Test everything
+curl -I https://foodsensescale.tech
+curl -I https://foodsensescale.tech/api/health
+curl -I https://foodsensescale.tech/static/js/main.js
