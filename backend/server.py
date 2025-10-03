@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 import os
@@ -36,6 +37,7 @@ db_name = os.getenv("DB_NAME", "maidsofcyfair")
 if "qHdDNJMRw8@123" in mongo_url:
     # Replace the problematic password with URL-encoded version
     mongo_url = mongo_url.replace("qHdDNJMRw8@123", "qHdDNJMRw8%40123")
+    print(f"Fixed MongoDB URL: {mongo_url}")
 
 # Connection pool settings for cloud MongoDB
 max_pool_size = int(os.getenv("MONGO_MAX_POOL_SIZE", "100"))
@@ -924,14 +926,46 @@ async def get_admin_user(current_user: User = Depends(get_current_user)) -> User
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
-# CORS
+# CORS - Enhanced configuration for Safari compatibility
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language", 
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-CSRFToken",
+        "Cache-Control",
+        "Pragma",
+        "Origin",
+        "Referer",
+        "User-Agent"
+    ],
+    expose_headers=["*"],
+    max_age=3600
 )
+
+# Custom middleware to ensure CORS headers are always present
+class CustomCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Add CORS headers to all responses
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, X-CSRFToken, Cache-Control, Pragma, Origin, Referer, User-Agent"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Expose-Headers"] = "*"
+        response.headers["Access-Control-Max-Age"] = "3600"
+        
+        return response
+
+app.add_middleware(CustomCORSMiddleware)
 
 # Static file serving for React production build
 frontend_build_path = ROOT_DIR.parent / "frontend" / "build"
@@ -4104,6 +4138,8 @@ async def handle_api_options(path: str):
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
             "Access-Control-Allow-Headers": "Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, X-CSRFToken, Cache-Control, Pragma, Origin, Referer, User-Agent",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Expose-Headers": "*",
             "Access-Control-Max-Age": "3600"
         }
     )

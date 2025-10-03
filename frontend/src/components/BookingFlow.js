@@ -10,14 +10,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Alert, AlertDescription } from './ui/alert';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { isSafari, getBrowserInfo } from '../utils/browserCompatibility';
 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Debug environment variables
+// Debug environment variables and browser info
 console.log('BookingFlow - BACKEND_URL:', BACKEND_URL);
 console.log('BookingFlow - API:', API);
+
+// Safari-specific debugging
+const browserInfo = getBrowserInfo();
+console.log('Browser Info:', browserInfo);
+if (isSafari()) {
+  console.log('Safari detected - enabling enhanced debugging');
+  console.log('Safari User Agent:', navigator.userAgent);
+  console.log('Safari Version:', browserInfo.version);
+}
 
 // Servicable zip codes
 const SERVICABLE_ZIP_CODES = ['77433', '77429', '77095', '77377', '77070', '77065'];
@@ -142,8 +152,18 @@ const BookingFlow = ({ isGuest = false }) => {
 
   // Load initial data
   useEffect(() => {
-    loadAllServices();
-    loadAvailableDates();
+    console.log('BookingFlow: Initializing component');
+    if (isSafari()) {
+      console.log('Safari: Component initialization started');
+    }
+    
+    // Add a small delay for Safari to ensure proper initialization
+    const initDelay = isSafari() ? 100 : 0;
+    
+    setTimeout(() => {
+      loadAllServices();
+      loadAvailableDates();
+    }, initDelay);
   }, []);
 
   // Update pricing when house size or frequency changes
@@ -164,21 +184,63 @@ const BookingFlow = ({ isGuest = false }) => {
 
   const loadAllServices = async () => {
     try {
-      const response = await axios.get(`${API}/services`);
+      console.log('Loading services from:', `${API}/services`);
+      if (isSafari()) {
+        console.log('Safari: Making services API call');
+      }
+      
+      const response = await axios.get(`${API}/services`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000, // 10 second timeout
+      });
+      
+      console.log('Services response:', response.data);
       setAllServices(response.data);
+      
+      if (isSafari()) {
+        console.log('Safari: Services loaded successfully');
+      }
     } catch (error) {
+      console.error('Failed to load services:', error);
+      if (isSafari()) {
+        console.error('Safari: Services API error:', error.message);
+        console.error('Safari: Error details:', error.response?.data);
+      }
       toast.error('Failed to load services');
-      console.error(error);
     }
   };
 
   const loadAvailableDates = async () => {
     try {
-      const response = await axios.get(`${API}/available-dates`);
+      console.log('Loading available dates from:', `${API}/available-dates`);
+      if (isSafari()) {
+        console.log('Safari: Making available dates API call');
+      }
+      
+      const response = await axios.get(`${API}/available-dates`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000, // 10 second timeout
+      });
+      
+      console.log('Available dates response:', response.data);
       setAvailableDates(response.data);
+      
+      if (isSafari()) {
+        console.log('Safari: Available dates loaded successfully');
+      }
     } catch (error) {
+      console.error('Failed to load available dates:', error);
+      if (isSafari()) {
+        console.error('Safari: Available dates API error:', error.message);
+        console.error('Safari: Error details:', error.response?.data);
+      }
       toast.error('Failed to load available dates');
-      console.error(error);
     }
   };
 
@@ -196,12 +258,32 @@ const BookingFlow = ({ isGuest = false }) => {
 
   const loadTimeSlots = async (date) => {
     try {
-      const response = await axios.get(`${API}/time-slots?date=${date}`);
+      console.log('Loading time slots for date:', date);
+      if (isSafari()) {
+        console.log('Safari: Making time slots API call for date:', date);
+      }
+      
+      const response = await axios.get(`${API}/time-slots?date=${date}`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000, // 10 second timeout
+      });
+      
       console.log('Time slots response:', response.data);
       setTimeSlots(response.data);
+      
+      if (isSafari()) {
+        console.log('Safari: Time slots loaded successfully');
+      }
     } catch (error) {
+      console.error('Failed to load time slots:', error);
+      if (isSafari()) {
+        console.error('Safari: Time slots API error:', error.message);
+        console.error('Safari: Error details:', error.response?.data);
+      }
       toast.error('Failed to load time slots');
-      console.error(error);
     }
   };
 
