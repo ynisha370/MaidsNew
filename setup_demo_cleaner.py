@@ -8,9 +8,9 @@ import uuid
 from datetime import datetime, timezone
 
 # Backend configuration
-BACKEND_URL = "https://calendar-fix-5.preview.emergentagent.com/api"
-MONGO_URL = "mongodb://localhost:27017"
-DB_NAME = "test_database"
+BACKEND_URL = "http://localhost:8000/api"
+MONGO_URL = "mongodb+srv://ynitin370:qHdDNJMRw8%40123@maidsofcyfair.rplwzsy.mongodb.net/?retryWrites=true&w=majority&appName=maidsofcyfair"
+DB_NAME = "maidsofcyfair"
 
 # Demo cleaner data
 DEMO_CLEANER = {
@@ -81,6 +81,14 @@ async def setup_demo_cleaner():
                 "is_active": True,
                 "rating": 4.8,
                 "total_jobs": 45,
+                "google_calendar_credentials": {
+                    "type": "authorized_user",
+                    "client_id": "demo-client-id",
+                    "client_secret": "demo-client-secret",
+                    "refresh_token": "demo-refresh-token"
+                },
+                "google_calendar_id": "primary",
+                "calendar_integration_enabled": True,
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
             

@@ -1,0 +1,58 @@
+# Dependencies and package managers
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Build outputs
+build/
+dist/
+*.apk
+*.ipa
+*.aab
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Test and temporary files
+test_results_*.json
+*_test_results.json
+*.log
+temp_*.py
+debug_*.py
+
+# Documentation builds
+*.pdf
+*.docx
+
+# Flutter specific
+.flutter/
+.dart_tool/
+.packages
+.pub/
+pubspec.lock
+
+# Backend specific
+*.sqlite
+*.sqlite3
+*.db

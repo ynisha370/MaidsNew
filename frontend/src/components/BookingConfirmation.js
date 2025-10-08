@@ -394,13 +394,13 @@ const BookingConfirmation = () => {
                   </div>
                 )}
 
-                {/* Room Selection */}
+                {/* Room Selection - Completely Hidden */}
+                {/*
                 {Object.keys(roomsSelected).length > 0 ? (
                   <div>
                     <h4 className="font-semibold text-gray-800 mb-4">Room Selection</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       {Object.entries(roomsSelected).map(([roomType, details]) => {
-                        // Get the correct price for each room type
                         const getRoomPrice = (type) => {
                           const roomPrices = {
                             'bedrooms': 8.50,
@@ -446,6 +446,7 @@ const BookingConfirmation = () => {
                     <p className="text-sm text-gray-600">No rooms selected</p>
                   </div>
                 )}
+                */}
 
                 {/* Property Details */}
                 <div className="grid md:grid-cols-2 gap-4">
@@ -479,7 +480,8 @@ const BookingConfirmation = () => {
                       <span>{formatCurrency(pricingBreakdown.base_price)}</span>
                     </div>
                     
-                    {/* Room Pricing Breakdown */}
+                    {/* Room Pricing Breakdown - Hidden */}
+                    {/*
                     {Object.keys(roomsSelected).length > 0 && (
                       <div className="border-l-2 border-blue-200 pl-3 ml-2">
                         <p className="text-sm font-medium text-gray-700 mb-2">Room Pricing:</p>
@@ -498,11 +500,11 @@ const BookingConfirmation = () => {
                             };
                             return roomPrices[type] || 0;
                           };
-                          
+
                           const roomPrice = getRoomPrice(roomType);
                           const quantity = details.quantity || 1;
                           const totalPrice = roomPrice * quantity;
-                          
+
                           return (
                             <div key={roomType} className="flex justify-between text-sm">
                               <span className="text-gray-600">
@@ -530,6 +532,7 @@ const BookingConfirmation = () => {
                         </div>
                       </div>
                     )}
+                    */}
                     
                     {pricingBreakdown.a_la_carte_total > 0 && (
                       <div className="flex justify-between">

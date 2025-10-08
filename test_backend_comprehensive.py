@@ -29,7 +29,7 @@ class MaidsBackendTester:
             "response_data": response_data
         }
         self.test_results.append(result)
-        status = "✅ PASS" if success else "❌ FAIL"
+        status = "PASS" if success else "FAIL"
         print(f"{status} {test_name}: {message}")
         
     def make_request(self, method: str, endpoint: str, data: Dict = None, headers: Dict = None, auth_required: bool = False) -> requests.Response:
@@ -61,7 +61,7 @@ class MaidsBackendTester:
 
     def test_authentication(self):
         """Test authentication endpoints"""
-        print("\n🔐 Testing Authentication Endpoints...")
+        print("\nTesting Authentication Endpoints...")
         
         # Test user registration
         try:
@@ -135,7 +135,7 @@ class MaidsBackendTester:
 
     def test_services(self):
         """Test service management endpoints"""
-        print("\n🛠️ Testing Service Endpoints...")
+        print("\nTesting Service Endpoints...")
         
         # Test get all services
         try:
@@ -183,7 +183,7 @@ class MaidsBackendTester:
 
     def test_time_slots(self):
         """Test time slot management"""
-        print("\n⏰ Testing Time Slot Endpoints...")
+        print("\nTesting Time Slot Endpoints...")
         
         # Test get available dates
         try:
@@ -210,7 +210,7 @@ class MaidsBackendTester:
 
     def test_booking_system(self):
         """Test booking system"""
-        print("\n📅 Testing Booking System...")
+        print("\nTesting Booking System...")
         
         # Test guest booking
         try:
@@ -293,7 +293,7 @@ class MaidsBackendTester:
 
     def test_promo_codes(self):
         """Test promo code system"""
-        print("\n🎟️ Testing Promo Code System...")
+        print("\nTesting Promo Code System...")
         
         # Test promo code validation
         try:
@@ -331,7 +331,7 @@ class MaidsBackendTester:
 
     def test_admin_endpoints(self):
         """Test admin endpoints"""
-        print("\n👑 Testing Admin Endpoints...")
+        print("\nTesting Admin Endpoints...")
         
         if not self.admin_token:
             self.log_test("Admin Endpoints", False, "No admin token available")
@@ -379,7 +379,7 @@ class MaidsBackendTester:
 
     def test_reports(self):
         """Test reporting endpoints"""
-        print("\n📊 Testing Report Endpoints...")
+        print("\nTesting Report Endpoints...")
         
         if not self.admin_token:
             self.log_test("Report Endpoints", False, "No admin token available")
@@ -416,7 +416,7 @@ class MaidsBackendTester:
 
     def test_error_handling(self):
         """Test error handling scenarios"""
-        print("\n🚨 Testing Error Handling...")
+        print("\nTesting Error Handling...")
         
         # Test invalid endpoint
         try:
@@ -454,7 +454,7 @@ class MaidsBackendTester:
 
     def run_all_tests(self):
         """Run all test suites"""
-        print("🚀 Starting Comprehensive Backend Testing...")
+        print("Starting Comprehensive Backend Testing...")
         print(f"Testing against: {self.base_url}")
         
         start_time = time.time()
@@ -477,10 +477,10 @@ class MaidsBackendTester:
         passed_tests = sum(1 for result in self.test_results if result["success"])
         failed_tests = total_tests - passed_tests
         
-        print(f"\n📋 Test Summary:")
+        print(f"\nTest Summary:")
         print(f"Total Tests: {total_tests}")
-        print(f"Passed: {passed_tests} ✅")
-        print(f"Failed: {failed_tests} ❌")
+        print(f"Passed: {passed_tests}")
+        print(f"Failed: {failed_tests}")
         print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
         print(f"Duration: {duration:.2f} seconds")
         

@@ -1,0 +1,172 @@
+{
+  "summary": {
+    "total_tests": 23,
+    "passed_tests": 19,
+    "failed_tests": 4,
+    "success_rate": 82.6086956521739,
+    "duration": 22.13353133201599
+  },
+  "test_results": [
+    {
+      "test_name": "User Registration",
+      "success": true,
+      "message": "User registered successfully",
+      "timestamp": "2025-10-08T23:36:35.884437",
+      "response_data": null
+    },
+    {
+      "test_name": "User Login",
+      "success": true,
+      "message": "User logged in successfully",
+      "timestamp": "2025-10-08T23:36:36.339681",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Current User",
+      "success": true,
+      "message": "Retrieved user: testuser_1759946793@example.com",
+      "timestamp": "2025-10-08T23:36:36.617987",
+      "response_data": null
+    },
+    {
+      "test_name": "Admin Login",
+      "success": true,
+      "message": "Admin logged in successfully",
+      "timestamp": "2025-10-08T23:36:37.075079",
+      "response_data": null
+    },
+    {
+      "test_name": "Get All Services",
+      "success": true,
+      "message": "Retrieved 13 services",
+      "timestamp": "2025-10-08T23:36:37.353533",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Standard Services",
+      "success": true,
+      "message": "Retrieved 0 standard services",
+      "timestamp": "2025-10-08T23:36:37.632328",
+      "response_data": null
+    },
+    {
+      "test_name": "Get A-La-Carte Services",
+      "success": true,
+      "message": "Retrieved 13 a-la-carte services",
+      "timestamp": "2025-10-08T23:36:37.912582",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Pricing",
+      "success": true,
+      "message": "Pricing: $40",
+      "timestamp": "2025-10-08T23:36:37.913583",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Available Dates",
+      "success": true,
+      "message": "Retrieved 21 available dates",
+      "timestamp": "2025-10-08T23:36:46.230277",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Time Slots",
+      "success": true,
+      "message": "Retrieved 6 time slots for 2025-10-09",
+      "timestamp": "2025-10-08T23:36:46.508717",
+      "response_data": null
+    },
+    {
+      "test_name": "Guest Booking",
+      "success": false,
+      "message": "Failed with status 400: {\"detail\":\"We currently only service these ZIP codes: 77433, 77429, 77095, 77377, 77070, 77065\"}",
+      "timestamp": "2025-10-08T23:36:46.510715",
+      "response_data": null
+    },
+    {
+      "test_name": "User Booking",
+      "success": false,
+      "message": "Failed with status 500: Internal Server Error",
+      "timestamp": "2025-10-08T23:36:46.793551",
+      "response_data": null
+    },
+    {
+      "test_name": "Get User Bookings",
+      "success": true,
+      "message": "Retrieved 0 bookings",
+      "timestamp": "2025-10-08T23:36:49.397616",
+      "response_data": null
+    },
+    {
+      "test_name": "Validate Promo Code",
+      "success": true,
+      "message": "Validation result: False",
+      "timestamp": "2025-10-08T23:36:49.963609",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Admin Promo Codes",
+      "success": true,
+      "message": "Retrieved 1 promo codes",
+      "timestamp": "2025-10-08T23:36:50.519093",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Admin Stats",
+      "success": true,
+      "message": "Stats: {'total_bookings': 13, 'total_revenue': 3681.2, 'total_cleaners': 4, 'open_tickets': 0}",
+      "timestamp": "2025-10-08T23:36:51.906813",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Admin Bookings",
+      "success": false,
+      "message": "Failed with status 500",
+      "timestamp": "2025-10-08T23:36:52.738785",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Admin Cleaners",
+      "success": true,
+      "message": "Retrieved 3 cleaners",
+      "timestamp": "2025-10-08T23:36:53.296736",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Weekly Report",
+      "success": true,
+      "message": "Weekly report: {'totalBookings': 5, 'revenue': 1250.0, 'cancellations': 0, 'reschedules': 0, 'completionRate': 20.0, 'customerSatisfaction': 95.0, 'avgBookingValue': 250.0, 'cleanerCompletions': [{'cleaner_name': 'nitin yadav', 'jobs_completed': 1, 'total_revenue': 331.5, 'completions': [{'cleaner_id': 'f52421d4-d4ab-49da-9943-6b10a898390e', 'cleaner_name': 'nitin yadav', 'job_id': '8b57ff1a-63f4-43ab-910e-1ddcc20f6aa1', 'completed_at': None, 'completion_notes': '', 'total_amount': 331.5}]}], 'totalCleanerCompletions': 1}",
+      "timestamp": "2025-10-08T23:36:54.131817",
+      "response_data": null
+    },
+    {
+      "test_name": "Get Monthly Report",
+      "success": true,
+      "message": "Monthly report: {'totalBookings': 11, 'revenue': 3481.2, 'cancellations': 0, 'reschedules': 0, 'completionRate': 9.1, 'customerSatisfaction': 95.0, 'avgBookingValue': 316.47, 'cleanerCompletions': [{'cleaner_name': 'nitin yadav', 'jobs_completed': 1, 'total_revenue': 331.5, 'completions': [{'cleaner_id': 'f52421d4-d4ab-49da-9943-6b10a898390e', 'cleaner_name': 'nitin yadav', 'job_id': '8b57ff1a-63f4-43ab-910e-1ddcc20f6aa1', 'completed_at': None, 'completion_notes': '', 'total_amount': 331.5}]}], 'totalCleanerCompletions': 1}",
+      "timestamp": "2025-10-08T23:36:54.965231",
+      "response_data": null
+    },
+    {
+      "test_name": "Invalid Endpoint",
+      "success": true,
+      "message": "Correctly returned 404",
+      "timestamp": "2025-10-08T23:36:54.967231",
+      "response_data": null
+    },
+    {
+      "test_name": "Unauthorized Access",
+      "success": false,
+      "message": "Unexpected status: 403",
+      "timestamp": "2025-10-08T23:36:54.969232",
+      "response_data": null
+    },
+    {
+      "test_name": "Invalid Booking Data",
+      "success": true,
+      "message": "Correctly rejected invalid data",
+      "timestamp": "2025-10-08T23:36:55.253192",
+      "response_data": null
+    }
+  ]
+}

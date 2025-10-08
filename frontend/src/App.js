@@ -9,6 +9,9 @@ import Register from "./components/Register";
 import AdminLogin from "./components/AdminLogin";
 import AdminDashboard from "./components/AdminDashboard";
 import CustomerDashboard from "./components/CustomerDashboard";
+import CleanerLogin from "./components/CleanerLogin";
+import CleanerSignup from "./components/CleanerSignup";
+import CleanerDashboard from "./components/CleanerDashboard";
 import BookingFlow from "./components/BookingFlow";
 import BookingConfirmation from "./components/BookingConfirmation";
 import RescheduleAppointment from "./components/RescheduleAppointment";
@@ -25,9 +28,9 @@ import { Toaster } from "./components/ui/sonner";
 // Auth Context
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
-const ProtectedRoute = ({ children, adminOnly = false }) => {
+const ProtectedRoute = ({ children, adminOnly = false, cleanerOnly = false }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -35,15 +38,19 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
       </div>
     );
   }
-  
+
   if (!user) {
     return <Navigate to="/login" />;
   }
-  
+
   if (adminOnly && user.role !== 'admin') {
     return <Navigate to="/admin/login" />;
   }
-  
+
+  if (cleanerOnly && user.role !== 'cleaner') {
+    return <Navigate to="/cleaner/login" />;
+  }
+
   return children;
 };
 
@@ -55,6 +62,9 @@ const PublicRoute = ({ children }) => {
   if (user && user.role === 'customer') {
     return <Navigate to="/" />;
   }
+  if (user && user.role === 'cleaner') {
+    return <Navigate to="/cleaner" />;
+  }
   return children;
 };
 
@@ -64,6 +74,15 @@ const AdminPublicRoute = ({ children }) => {
     return <Navigate to="/admin" />;
   }
   // Allow access to admin login even if customer is logged in
+  return children;
+};
+
+const CleanerPublicRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (user && user.role === 'cleaner') {
+    return <Navigate to="/cleaner" />;
+  }
+  // Allow access to cleaner login even if customer is logged in
   return children;
 };
 
@@ -97,6 +116,23 @@ function AppContent() {
         <Route path="/admin" element={
           <ProtectedRoute adminOnly={true}>
             <AdminDashboard />
+          </ProtectedRoute>
+        } />
+
+        {/* Cleaner Routes */}
+        <Route path="/cleaner/login" element={
+          <CleanerPublicRoute>
+            <CleanerLogin />
+          </CleanerPublicRoute>
+        } />
+        <Route path="/cleaner/signup" element={
+          <CleanerPublicRoute>
+            <CleanerSignup />
+          </CleanerPublicRoute>
+        } />
+        <Route path="/cleaner" element={
+          <ProtectedRoute cleanerOnly={true}>
+            <CleanerDashboard />
           </ProtectedRoute>
         } />
         

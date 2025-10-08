@@ -228,9 +228,16 @@ const CalendarJobAssignment = () => {
 
     if (dropData?.type === 'calendar-slot') {
       const { cleanerId, timeSlot, isAvailable } = dropData;
-      
+
       if (!isAvailable) {
         toast.error('This time slot is not available');
+        return;
+      }
+
+      // Check if there are already existing jobs in this slot
+      const existingJobs = getExistingJobsForSlot(cleanerId, timeSlot);
+      if (existingJobs.length > 0) {
+        toast.error('This time slot already has jobs assigned');
         return;
       }
 
@@ -278,9 +285,14 @@ const CalendarJobAssignment = () => {
   };
 
   const getExistingJobsForSlot = (cleanerId, timeSlot) => {
-    // This would typically come from the availability data
-    // For now, returning empty array as placeholder
-    return [];
+    // Get cleaner data from the availability response
+    const cleaner = cleanerAvailability.find(c => c.cleaner_id === cleanerId);
+    if (!cleaner || !cleaner.slots[timeSlot]) {
+      return [];
+    }
+
+    // Return existing jobs from the slot data
+    return cleaner.slots[timeSlot].existing_jobs || [];
   };
 
   return (
@@ -398,9 +410,10 @@ const CalendarJobAssignment = () => {
                               </div>
                             </td>
                             {timeSlots.map((slot) => {
-                              const isAvailable = cleaner.slots[slot];
+                              const slotData = cleaner.slots[slot];
+                              const isAvailable = slotData?.available;
                               const existingJobs = getExistingJobsForSlot(cleaner.cleaner_id, slot);
-                              
+
                               return (
                                 <td key={slot} className="border p-2">
                                   <DroppableCalendarCell

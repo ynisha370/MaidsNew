@@ -647,15 +647,13 @@ const BookingFlow = ({ isGuest = false }) => {
                         <span className="text-2xl font-bold text-primary">${basePrice.toFixed(2)}</span>
                       </div>
                       <p className="text-sm text-gray-600 mt-1">
-s                      </p>
+                  </p>
                     </div>
                   )}
 
                   {/* Standard Services Selection */}
                     <div className="mt-6">
-                      <label className="block text-sm font-medium text-gray-700 mb-4">
-                     
-                    </label>
+
                     <div className="grid md:grid-cols-2 gap-4">
                       {services.map((service) => {
                         const isSelected = selectedServices.find(s => s.serviceId === service.id);
@@ -693,7 +691,7 @@ s                      </p>
                             <div className="bg-gray-50 p-4 rounded-lg">
                         <div className="flex justify-between items-center mb-2">
                                 <span className="text-gray-800 text-sm">Bedrooms</span>
-                                <span className="text-xs font-medium text-primary">$8.50 each</span>
+                                {/* <span className="text-xs font-medium text-primary">$8.50 each</span> */}
                         </div>
                         <Select
                           value={String(rooms.bedrooms)}
@@ -712,7 +710,7 @@ s                      </p>
                             <div className="bg-gray-50 p-4 rounded-lg">
                         <div className="flex justify-between items-center mb-2">
                                 <span className="text-gray-800 text-sm">Bathrooms</span>
-                                <span className="text-xs font-medium text-primary">$15 each</span>
+                                {/* <span className="text-xs font-medium text-primary">$15 each</span> */}
                         </div>
                         <Select
                           value={String(rooms.bathrooms)}
@@ -731,7 +729,7 @@ s                      </p>
                             <div className="bg-gray-50 p-4 rounded-lg">
                         <div className="flex justify-between items-center mb-2">
                                 <span className="text-gray-800 text-sm">Half Bathrooms</span>
-                                <span className="text-xs font-medium text-primary">$10 each</span>
+                                {/* <span className="text-xs font-medium text-primary">$10 each</span> */}
                         </div>
                         <Select
                           value={String(rooms.halfBathrooms)}
@@ -762,7 +760,7 @@ s                      </p>
                           />
                                 <span className="text-gray-800 text-sm">Clean Dining Room</span>
                         </div>
-                              <span className="text-xs font-medium text-primary">$8.50</span>
+                              {/* <span className="text-xs font-medium text-primary">$8.50</span> */}
                       </label>
                             <label className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
                         <div className="flex items-center space-x-3">
@@ -773,7 +771,7 @@ s                      </p>
                           />
                                 <span className="text-gray-800 text-sm">Clean Kitchen</span>
                         </div>
-                              <span className="text-xs font-medium text-primary">$20</span>
+                              {/* <span className="text-xs font-medium text-primary">$20</span> */}
                       </label>
                             <label className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
                         <div className="flex items-center space-x-3">
@@ -784,7 +782,7 @@ s                      </p>
                           />
                                 <span className="text-gray-800 text-sm">Clean Living Room</span>
                         </div>
-                              <span className="text-xs font-medium text-primary">$8.50</span>
+                              {/* <span className="text-xs font-medium text-primary">$8.50</span> */}
                       </label>
                             <label className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
                         <div className="flex items-center space-x-3">
@@ -795,7 +793,7 @@ s                      </p>
                           />
                                 <span className="text-gray-800 text-sm">Clean Media Room</span>
                         </div>
-                              <span className="text-xs font-medium text-primary">$8.50</span>
+                              {/* <span className="text-xs font-medium text-primary">$8.50</span> */}
                       </label>
                             <label className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
                         <div className="flex items-center space-x-3">
@@ -806,7 +804,7 @@ s                      </p>
                           />
                                 <span className="text-gray-800 text-sm">Clean Game Room</span>
                         </div>
-                              <span className="text-xs font-medium text-primary">$8.50</span>
+                              {/* <span className="text-xs font-medium text-primary">$8.50</span> */}
                       </label>
                             <label className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
                         <div className="flex items-center space-x-3">
@@ -817,7 +815,7 @@ s                      </p>
                           />
                                 <span className="text-gray-800 text-sm">Clean Office</span>
                         </div>
-                              <span className="text-xs font-medium text-primary">$8.50</span>
+                              {/* <span className="text-xs font-medium text-primary">$8.50</span> */}
                       </label>
                           </div>
                     </div>
