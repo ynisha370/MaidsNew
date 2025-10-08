@@ -32,7 +32,8 @@ const AdminSidebar = ({
   isCollapsed, 
   onToggleCollapse,
   stats = {},
-  counts = {}
+  counts = {},
+  onLogout
 }) => {
   const [expandedSections, setExpandedSections] = useState({
     management: true,
@@ -350,10 +351,7 @@ const AdminSidebar = ({
             "w-full text-gray-600 hover:text-red-600 hover:bg-red-50",
             isCollapsed ? "justify-center px-2" : "justify-start"
           )}
-          onClick={() => {
-            // Handle logout
-            window.location.href = '/admin/login';
-          }}
+          onClick={onLogout}
         >
           <LogOut size={isCollapsed ? 20 : 16} className={isCollapsed ? "" : "mr-3"} />
           {!isCollapsed && "Logout"}

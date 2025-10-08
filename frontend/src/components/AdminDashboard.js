@@ -540,6 +540,10 @@ const AdminDashboard = () => {
             faqs: faqs.length,
             tickets: tickets.length
           }}
+          onLogout={() => {
+            logout();
+            navigate('/admin/login');
+          }}
         />
 
         {/* Main Content */}
