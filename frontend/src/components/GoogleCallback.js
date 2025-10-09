@@ -38,9 +38,12 @@ const GoogleCallback = () => {
           
           // Get user data from backend using the token
           const userResponse = await fetch(`${process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000'}/api/auth/me`, {
+            method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json',
             },
+            credentials: 'include', // Required for Safari to send cookies
           });
           
           if (userResponse.ok) {
@@ -74,7 +77,9 @@ const GoogleCallback = () => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
             },
+            credentials: 'include', // Required for Safari to send cookies
             body: JSON.stringify({ code }),
           });
 

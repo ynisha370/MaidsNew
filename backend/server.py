@@ -1015,10 +1015,17 @@ async def get_cleaner_user(current_user: User = Depends(get_current_user)) -> Us
         raise HTTPException(status_code=403, detail="Cleaner access required")
     return current_user
 
-# CORS - Enhanced configuration for Safari compatibility
+# CORS - Safari-compatible configuration
+# CRITICAL: Cannot use allow_origins=["*"] with allow_credentials=True
+# Safari strictly enforces this CORS policy violation
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://foodsensescale.tech",
+        "https://www.foodsensescale.tech",
+        "http://localhost:3000",  # for local development
+        "http://localhost:8000"   # for local backend testing
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=[
@@ -1035,26 +1042,38 @@ app.add_middleware(
         "Referer",
         "User-Agent"
     ],
-    expose_headers=["*"],
+    expose_headers=["Content-Length", "Content-Range", "Authorization"],
     max_age=3600
 )
 
-# Custom middleware to ensure CORS headers are always present
-class CustomCORSMiddleware(BaseHTTPMiddleware):
+# Custom middleware for Safari compatibility and proper origin handling
+class SafariCompatibleCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # Get the origin from the request
+        origin = request.headers.get("origin", "")
+        
+        # List of allowed origins
+        allowed_origins = [
+            "https://foodsensescale.tech",
+            "https://www.foodsensescale.tech",
+            "http://localhost:3000",
+            "http://localhost:8000"
+        ]
+        
         response = await call_next(request)
         
-        # Add CORS headers to all responses
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, X-CSRFToken, Cache-Control, Pragma, Origin, Referer, User-Agent"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Expose-Headers"] = "*"
-        response.headers["Access-Control-Max-Age"] = "3600"
+        # Only add CORS headers if origin is allowed
+        if origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, X-CSRFToken, Cache-Control, Pragma, Origin, Referer, User-Agent"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Expose-Headers"] = "Content-Length, Content-Range, Authorization"
+            response.headers["Access-Control-Max-Age"] = "3600"
         
         return response
 
-app.add_middleware(CustomCORSMiddleware)
+app.add_middleware(SafariCompatibleCORSMiddleware)
 
 # Static file serving for React production build
 frontend_build_path = ROOT_DIR.parent / "frontend" / "build"
