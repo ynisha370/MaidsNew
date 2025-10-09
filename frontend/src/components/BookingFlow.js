@@ -289,14 +289,15 @@ const BookingFlow = ({ isGuest = false }) => {
 
   // House size options
   const houseSizeOptions = [
-    { value: '1000-1500', label: '1000-1500 sq ft' },
-    { value: '1500-2000', label: '1500-2000 sq ft' },
-    { value: '2000-2500', label: '2000-2500 sq ft' },
-    { value: '2500-3000', label: '2500-3000 sq ft' },
-    { value: '3000-3500', label: '3000-3500 sq ft' },
-    { value: '3500-4000', label: '3500-4000 sq ft' },
-    { value: '4000-4500', label: '4000-4500 sq ft' },
-    { value: '5000+', label: '5000+ sq ft' }
+    { value: '1000-2000', label: '1000-1999 sq ft' },
+    { value: '2000-2500', label: '2000-2499 sq ft' },
+    { value: '2500-3000', label: '2500-2999 sq ft' },
+    { value: '3000-3500', label: '3000-3499 sq ft' },
+    { value: '3500-4000', label: '3500-3999 sq ft' },
+    { value: '4000-4500', label: '4000-4499 sq ft' },
+    { value: '4500-5000', label: '4500-4999 sq ft' },
+    { value: '5000-6000', label: '5000-5999 sq ft' },
+    { value: '6000-8000', label: '6000-8000 sq ft' }
   ];
 
   // Frequency options

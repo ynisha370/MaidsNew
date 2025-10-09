@@ -1,0 +1,143 @@
+INFO:     Started server process [15402]
+INFO:     Waiting for application startup.
+INFO:services.reminder_service:Reminder templates already exist, skipping initialization
+INFO:services.reminder_scheduler:Reminder scheduler started
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:twilio.http_client:-- BEGIN Twilio API Request --
+INFO:twilio.http_client:POST Request: https://api.twilio.com/2010-04-01/Accounts/your_twilio_account_sid_here/Messages.json
+INFO:twilio.http_client:Headers:
+INFO:twilio.http_client:Content-Type : application/x-www-form-urlencoded
+INFO:twilio.http_client:Accept : application/json
+INFO:twilio.http_client:User-Agent : twilio-python/9.8.3 (Darwin arm64) Python/3.13.7
+INFO:twilio.http_client:X-Twilio-Client : python-9.8.3
+INFO:twilio.http_client:Accept-Charset : utf-8
+INFO:twilio.http_client:-- END Twilio API Request --
+INFO:twilio.http_client:Response Status Code: 401
+INFO:twilio.http_client:Response Headers: {'Content-Type': 'application/json', 'Content-Length': '134', 'Connection': 'keep-alive', 'Date': 'Thu, 09 Oct 2025 20:57:39 GMT', 'X-API-Domain': 'api.twilio.com', 'X-Verification-Disclosure': 'Message Accepted. Pending content verification for US/Canada destination numbers:', 'Www-Authenticate': 'Basic realm="Twilio API"', 'Twilio-Request-Id': 'RQ1c9bb8059c8c46633df826b172509fa3', 'X-Shenanigans': 'none', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type, If-Match, If-Modified-Since, If-None-Match, If-Unmodified-Since, Idempotency-Key', 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Access-Control-Expose-Headers': 'ETag', 'Access-Control-Allow-Credentials': 'true', 'X-Powered-By': 'AT-5000', 'X-Home-Region': 'us1', 'X-Cache': 'Error from cloudfront', 'Via': '1.1 c13661f9455806125a56201b0ccd2b96.cloudfront.net (CloudFront)', 'X-Amz-Cf-Pop': 'DEL54-P3', 'X-Amz-Cf-Id': 'dcLSHbOClzRtp3DlKMQU2sCbkYdJv3WOHBDLWtWwrr5K0K07jKDYAA=='}
+ERROR:services.twilio_sms_service:Twilio error sending SMS to +1234567891: HTTP 401 error: Unable to create record: Authentication Error - invalid username
+ERROR:services.reminder_service:Failed to send reminder for booking 156cde53-5a5e-4e2c-b531-6e00076c8d06: HTTP 401 error: Unable to create record: Authentication Error - invalid username
+ERROR:services.reminder_scheduler:Failed to send day-before reminder for booking 156cde53-5a5e-4e2c-b531-6e00076c8d06: Failed to send reminder: HTTP 401 error: Unable to create record: Authentication Error - invalid username
+Fixed MongoDB URL: mongodb+srv://ynitin370:qHdDNJMRw8%40123@maidsofcyfair.rplwzsy.mongodb.net/?retryWrites=true&w=majority&appName=maidsofcyfair
+Reminder service and scheduler initialized successfully
+INFO:     127.0.0.1:51135 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51144 - "GET /api/admin/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51151 - "PATCH /api/admin/services/6c7e9a12-00aa-4fd1-9f00-841f3af86129 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51158 - "PATCH /api/admin/services/6c7e9a12-00aa-4fd1-9f00-841f3af86129 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51161 - "PUT /api/admin/services/6c7e9a12-00aa-4fd1-9f00-841f3af86129 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51185 - "GET /api/admin/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51310 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51321 - "GET /api/admin/cleaners/pending HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51325 - "GET /api/admin/cleaners/pending HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51328 - "POST /api/cleaner/login HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:51330 - "GET /api/cleaner/earnings HTTP/1.1" 401 Unauthorized
+/Users/nitinyadav/Documents/GitHub/MaidsNew/backend/server.py:1972: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  notified_at=datetime.utcnow()
+/Users/nitinyadav/Documents/GitHub/MaidsNew/backend/server.py:1975: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+  await db.calendar_events.insert_one(prepare_for_mongo(calendar_event.dict()))
+ERROR:services.email_service:Unexpected error sending email to cleaner3@maids.com: Unable to locate credentials
+Error creating calendar service: ('invalid_client: The OAuth client was not found.', {'error': 'invalid_client', 'error_description': 'The OAuth client was not found.'})
+Auto-assigned cleaner bd142d0e-a410-4ea0-afc6-2627b791fd31 with score 49.48
+Auto-assigned cleaner Lisa Chen to booking 162fe1d5-f005-4cc3-98a5-0b0d57082f4c
+INFO:     127.0.0.1:51333 - "POST /api/bookings/guest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51356 - "GET /api/cleaner/jobs HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51358 - "POST /api/cleaner/clock-in HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51360 - "POST /api/cleaner/update-eta HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51363 - "POST /api/cleaner/send-message HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51368 - "POST /api/cleaner/clock-out HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51372 - "GET /api/cleaner/earnings HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51378 - "GET /api/cleaner/wallet HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51382 - "GET /api/cleaner/payments HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51384 - "GET /api/admin/reports/weekly HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51387 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51406 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51406 - "GET /api/customer/next-appointment HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51406 - "GET /api/customer/upcoming-appointments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51406 - "GET /api/customer/payment-methods HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51417 - "OPTIONS /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51418 - "OPTIONS /api/available-dates HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51417 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51417 - "OPTIONS /api/pricing/1000-1500/one_time HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51418 - "OPTIONS /api/calculate-room-pricing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51424 - "GET /api/pricing/1000-1500/one_time HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51418 - "POST /api/calculate-room-pricing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51440 - "POST /api/calculate-room-pricing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51440 - "POST /api/calculate-room-pricing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51440 - "POST /api/calculate-room-pricing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51487 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51487 - "OPTIONS /api/admin/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51508 - "OPTIONS /api/admin/bookings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51509 - "OPTIONS /api/admin/cleaners HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51511 - "OPTIONS /api/admin/cleaners/pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51513 - "OPTIONS /api/admin/faqs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51514 - "OPTIONS /api/admin/tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51487 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51514 - "GET /api/admin/faqs HTTP/1.1" 200 OK
+Admin cleaners endpoint: Found 12 cleaners
+Skipping cleaner with missing fields: maria@maidsofcyfair.com
+Skipping cleaner with missing fields: ana@maidsofcyfair.com
+Skipping cleaner with missing fields: carmen@maidsofcyfair.com
+Skipping cleaner with missing fields: 
+INFO:     127.0.0.1:51511 - "GET /api/admin/cleaners HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51487 - "GET /api/admin/tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51508 - "GET /api/admin/stats HTTP/1.1" 200 OK
+Admin bookings endpoint: Found 1 bookings
+INFO:     127.0.0.1:51509 - "GET /api/admin/bookings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51513 - "GET /api/admin/cleaners/pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51742 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51882 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51951 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51955 - "GET /api/admin/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51961 - "GET /api/admin/calendar/unassigned-jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51967 - "GET /api/admin/calendar/availability-summary HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:51969 - "GET /api/admin/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52162 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52175 - "GET /api/admin/tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52173 - "GET /api/admin/faqs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52175 - "GET /api/services HTTP/1.1" 200 OK
+Admin bookings endpoint: Found 1 bookings
+INFO:     127.0.0.1:52168 - "GET /api/admin/bookings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52168 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52175 - "GET /api/admin/faqs HTTP/1.1" 200 OK
+Admin cleaners endpoint: Found 12 cleaners
+Skipping cleaner with missing fields: maria@maidsofcyfair.com
+Skipping cleaner with missing fields: ana@maidsofcyfair.com
+Skipping cleaner with missing fields: carmen@maidsofcyfair.com
+Skipping cleaner with missing fields: 
+INFO:     127.0.0.1:52170 - "GET /api/admin/cleaners HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52172 - "GET /api/admin/cleaners/pending HTTP/1.1" 200 OK
+Admin bookings endpoint: Found 1 bookings
+INFO:     127.0.0.1:52168 - "GET /api/admin/bookings HTTP/1.1" 200 OK
+Admin cleaners endpoint: Found 12 cleaners
+Skipping cleaner with missing fields: maria@maidsofcyfair.com
+Skipping cleaner with missing fields: ana@maidsofcyfair.com
+Skipping cleaner with missing fields: carmen@maidsofcyfair.com
+Skipping cleaner with missing fields: 
+INFO:     127.0.0.1:52170 - "GET /api/admin/cleaners HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52175 - "GET /api/admin/cleaners/pending HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52162 - "GET /api/admin/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52173 - "GET /api/admin/tickets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52175 - "GET /api/admin/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52213 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52213 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52221 - "GET /api/customer/next-appointment HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52213 - "GET /api/customer/upcoming-appointments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52221 - "GET /api/customer/next-appointment HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52213 - "GET /api/customer/payment-methods HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52221 - "GET /api/customer/upcoming-appointments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52221 - "GET /api/customer/payment-methods HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52249 - "OPTIONS /api/available-dates HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52251 - "OPTIONS /api/available-dates HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52248 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52248 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52248 - "GET /api/pricing/2000-2500/bi_weekly HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52251 - "OPTIONS /api/calculate-room-pricing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52257 - "POST /api/calculate-room-pricing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52257 - "POST /api/calculate-room-pricing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52278 - "GET /api/customer/next-appointment HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52282 - "GET /api/customer/upcoming-appointments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52278 - "GET /api/customer/next-appointment HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52282 - "GET /api/customer/payment-methods HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52278 - "GET /api/customer/upcoming-appointments HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52278 - "GET /api/customer/payment-methods HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52249 - "GET /api/available-dates HTTP/1.1" 200 OK

@@ -219,7 +219,7 @@ const Register = () => {
                     // Store signup intent in localStorage
                     localStorage.setItem('oauth_intent', 'signup');
                     
-                    const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '758684152649-6o73m1nt3okhh6v32oi6ki5fq2khd51t.apps.googleusercontent.com';
+                    const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '758684152649-uss73uc32io23s8l519lc2fcem4u6adc.apps.googleusercontent.com';
                     const redirectUri = encodeURIComponent(`${process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000'}/api/auth/google/callback`);
                     const scope = encodeURIComponent('openid email profile');
                     const responseType = 'code';

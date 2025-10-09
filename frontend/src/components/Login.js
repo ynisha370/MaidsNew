@@ -56,7 +56,7 @@ const Login = () => {
 
   const handleGoogleSignIn = () => {
     // Try environment variable first, fallback to hardcoded value
-    const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '758684152649-6o73m1nt3okhh6v32oi6ki5fq2khd51t.apps.googleusercontent.com';
+    const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '758684152649-uss73uc32io23s8l519lc2fcem4u6adc.apps.googleusercontent.com';
     
     console.log('Environment check:');
     console.log('- NODE_ENV:', process.env.NODE_ENV);

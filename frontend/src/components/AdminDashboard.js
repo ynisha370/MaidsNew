@@ -24,7 +24,10 @@ import {
   Calendar as CalendarIcon,
   X,
   RotateCcw,
-  Menu
+  Menu,
+  Mail,
+  Phone,
+  XCircle
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -57,6 +60,7 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState({});
   const [bookings, setBookings] = useState([]);
   const [cleaners, setCleaners] = useState([]);
+  const [pendingCleaners, setPendingCleaners] = useState([]);
   const [faqs, setFAQs] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [services, setServices] = useState([]);
@@ -148,6 +152,7 @@ const AdminDashboard = () => {
         loadStats(),
         loadBookings(),
         loadCleaners(),
+        loadPendingCleaners(),
         loadFAQs(),
         loadTickets(),
         loadServices()
@@ -261,6 +266,51 @@ const AdminDashboard = () => {
       loadCleaners();
     } catch (error) {
       toast.error('Failed to delete cleaner');
+    }
+  };
+
+  // Pending cleaners management functions
+  const loadPendingCleaners = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API}/admin/cleaners/pending`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPendingCleaners(response.data.pending_cleaners || []);
+    } catch (error) {
+      console.error('Failed to load pending cleaners:', error);
+      toast.error('Failed to load pending cleaners');
+    }
+  };
+
+  const approveCleaner = async (cleanerId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${API}/admin/cleaners/${cleanerId}/approve`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success(response.data.message || 'Cleaner approved successfully');
+      loadPendingCleaners();
+      loadCleaners();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to approve cleaner');
+    }
+  };
+
+  const rejectCleaner = async (cleanerId, reason = '') => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `${API}/admin/cleaners/${cleanerId}/reject?reason=${encodeURIComponent(reason)}`, 
+        {}, 
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      toast.success('Cleaner application rejected');
+      loadPendingCleaners();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to reject cleaner');
     }
   };
 
@@ -1082,89 +1132,204 @@ const AdminDashboard = () => {
 
           {/* Cleaners Management */}
           <TabsContent value="cleaners" className="space-y-6 tab-content">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold">Cleaner Management</h2>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="btn-hover">
-                    <Plus className="mr-2" size={16} />
-                    Add Cleaner
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Cleaner</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input
-                        placeholder="First Name"
-                        value={newCleaner.first_name}
-                        onChange={(e) => setNewCleaner({...newCleaner, first_name: e.target.value})}
-                      />
-                      <Input
-                        placeholder="Last Name"
-                        value={newCleaner.last_name}
-                        onChange={(e) => setNewCleaner({...newCleaner, last_name: e.target.value})}
-                      />
-                    </div>
-                    <Input
-                      placeholder="Email"
-                      type="email"
-                      value={newCleaner.email}
-                      onChange={(e) => setNewCleaner({...newCleaner, email: e.target.value})}
-                    />
-                    <Input
-                      placeholder="Phone"
-                      value={newCleaner.phone}
-                      onChange={(e) => setNewCleaner({...newCleaner, phone: e.target.value})}
-                    />
-                    <Button onClick={createCleaner} className="w-full">
-                      Create Cleaner
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {cleaners.map((cleaner) => (
-                <Card key={cleaner.id}>
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="font-semibold">{cleaner.first_name} {cleaner.last_name}</h3>
-                        <p className="text-sm text-gray-600">{cleaner.email}</p>
-                        <p className="text-sm text-gray-600">{cleaner.phone}</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => deleteCleaner(cleaner.id)}
-                      >
-                        <Trash2 size={14} />
+            <Tabs defaultValue="approved" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="approved">
+                  All Cleaners ({cleaners.length})
+                </TabsTrigger>
+                <TabsTrigger value="pending">
+                  Pending Approval 
+                  {pendingCleaners.length > 0 && (
+                    <Badge className="ml-2 bg-orange-500">{pendingCleaners.length}</Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="approved" className="space-y-4">
+                <div className="flex justify-end mb-4">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button className="btn-hover">
+                        <Plus className="mr-2" size={16} />
+                        Add Cleaner
                       </Button>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm">Total Jobs:</span>
-                        <span className="font-medium">{cleaner.total_jobs}</span>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add New Cleaner</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <Input
+                            placeholder="First Name"
+                            value={newCleaner.first_name}
+                            onChange={(e) => setNewCleaner({...newCleaner, first_name: e.target.value})}
+                          />
+                          <Input
+                            placeholder="Last Name"
+                            value={newCleaner.last_name}
+                            onChange={(e) => setNewCleaner({...newCleaner, last_name: e.target.value})}
+                          />
+                        </div>
+                        <Input
+                          placeholder="Email"
+                          type="email"
+                          value={newCleaner.email}
+                          onChange={(e) => setNewCleaner({...newCleaner, email: e.target.value})}
+                        />
+                        <Input
+                          placeholder="Phone"
+                          value={newCleaner.phone}
+                          onChange={(e) => setNewCleaner({...newCleaner, phone: e.target.value})}
+                        />
+                        <Button onClick={createCleaner} className="w-full">
+                          Create Cleaner
+                        </Button>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm">Rating:</span>
-                        <span className="font-medium">{cleaner.rating.toFixed(1)}/5.0</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm">Status:</span>
-                        <Badge className={cleaner.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                          {cleaner.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {cleaners.map((cleaner) => (
+                    <Card key={cleaner.id}>
+                      <CardContent className="p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="font-semibold">{cleaner.first_name} {cleaner.last_name}</h3>
+                            <p className="text-sm text-gray-600">{cleaner.email}</p>
+                            <p className="text-sm text-gray-600">{cleaner.phone}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => deleteCleaner(cleaner.id)}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm">Total Jobs:</span>
+                            <span className="font-medium">{cleaner.total_jobs}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm">Rating:</span>
+                            <span className="font-medium">{cleaner.rating.toFixed(1)}/5.0</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm">Status:</span>
+                            <Badge className={cleaner.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                              {cleaner.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="pending" className="space-y-4">
+                {pendingCleaners.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-12 text-center">
+                      <UserCheck className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Pending Applications</h3>
+                      <p className="text-gray-500">There are no cleaner applications awaiting approval.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {pendingCleaners.map((cleaner) => (
+                      <Card key={cleaner.id} className="border-orange-200 bg-orange-50/30">
+                        <CardContent className="p-6">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-semibold text-lg">
+                                  {cleaner.first_name} {cleaner.last_name}
+                                </h3>
+                                <Badge className="bg-orange-500">Pending</Badge>
+                              </div>
+                              <div className="space-y-1 text-sm text-gray-600">
+                                <p className="flex items-center gap-2">
+                                  <Mail size={14} />
+                                  {cleaner.email}
+                                </p>
+                                <p className="flex items-center gap-2">
+                                  <Phone size={14} />
+                                  {cleaner.phone}
+                                </p>
+                                <p className="flex items-center gap-2">
+                                  <Clock size={14} />
+                                  Applied: {new Date(cleaner.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" variant="outline" className="text-gray-600">
+                                    <Eye className="mr-1" size={14} />
+                                    View Details
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Cleaner Application Details</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <div>
+                                      <h4 className="font-medium mb-2">Personal Information</h4>
+                                      <div className="space-y-2 text-sm">
+                                        <p><strong>Name:</strong> {cleaner.first_name} {cleaner.last_name}</p>
+                                        <p><strong>Email:</strong> {cleaner.email}</p>
+                                        <p><strong>Phone:</strong> {cleaner.phone}</p>
+                                        <p><strong>Applied:</strong> {new Date(cleaner.created_at).toLocaleString()}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                              <Button 
+                                size="sm" 
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => {
+                                  if (window.confirm(`Approve ${cleaner.first_name} ${cleaner.last_name}?`)) {
+                                    approveCleaner(cleaner.id);
+                                  }
+                                }}
+                              >
+                                <CheckCircle className="mr-1" size={14} />
+                                Approve
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="destructive"
+                                onClick={() => {
+                                  const reason = prompt(`Reject ${cleaner.first_name} ${cleaner.last_name}?\n\nOptional: Enter rejection reason:`);
+                                  if (reason !== null) {
+                                    rejectCleaner(cleaner.id, reason);
+                                  }
+                                }}
+                              >
+                                <XCircle className="mr-1" size={14} />
+                                Reject
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* Services Management */}

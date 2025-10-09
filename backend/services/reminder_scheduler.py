@@ -4,8 +4,9 @@ Handles scheduling and sending of automatic reminders based on booking dates
 """
 import asyncio
 import logging
+import re
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from .reminder_service import ReminderService, ReminderType
 
@@ -17,6 +18,62 @@ class ReminderScheduler:
         self.reminder_service = reminder_service
         self.is_running = False
         self.task = None
+    
+    def parse_time_slot(self, time_slot: str) -> Optional[Tuple[int, int]]:
+        """
+        Parse time slot string and return (hour, minute) in 24-hour format
+        Handles various formats like:
+        - "9:00 AM - 11:00 AM"
+        - "2:30 PM - 4:30 PM"
+        - "10:00 AM"
+        - "14:30" (24-hour format)
+        """
+        if not time_slot:
+            return None
+        
+        try:
+            # Extract the start time (before the dash)
+            start_time_str = time_slot.split(" - ")[0].strip()
+            
+            # Handle 24-hour format (e.g., "14:30")
+            if re.match(r'^\d{1,2}:\d{2}$', start_time_str):
+                hour, minute = map(int, start_time_str.split(':'))
+                if 0 <= hour <= 23 and 0 <= minute <= 59:
+                    return (hour, minute)
+                return None
+            
+            # Handle 12-hour format (e.g., "2:30 PM", "10:00 AM")
+            time_match = re.match(r'^(\d{1,2}):(\d{2})\s*(AM|PM)$', start_time_str.upper())
+            if time_match:
+                hour = int(time_match.group(1))
+                minute = int(time_match.group(2))
+                period = time_match.group(3)
+                
+                # Validate hour for 12-hour format (1-12)
+                if hour < 1 or hour > 12:
+                    return None
+                
+                # Validate minute
+                if minute < 0 or minute > 59:
+                    return None
+                
+                # Convert to 24-hour format
+                if period == 'AM':
+                    if hour == 12:
+                        hour = 0
+                elif period == 'PM':
+                    if hour != 12:
+                        hour += 12
+                
+                # Validate final hour
+                if 0 <= hour <= 23:
+                    return (hour, minute)
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Error parsing time slot '{time_slot}': {str(e)}")
+            return None
     
     async def start_scheduler(self):
         """Start the automatic reminder scheduler"""
@@ -131,21 +188,17 @@ class ReminderScheduler:
                 if not time_slot:
                     continue
                 
-                # Simple time parsing (assuming format like "9:00 AM - 11:00 AM")
+                # Use improved time parsing
                 try:
-                    start_time_str = time_slot.split(" - ")[0]
-                    # Convert to 24-hour format for comparison
-                    if "AM" in start_time_str:
-                        hour = int(start_time_str.split(":")[0])
-                        if hour == 12:
-                            hour = 0
-                    else:  # PM
-                        hour = int(start_time_str.split(":")[0])
-                        if hour != 12:
-                            hour += 12
+                    time_result = self.parse_time_slot(time_slot)
+                    if time_result is None:
+                        logger.warning(f"Could not parse time slot for booking {booking['id']}: {time_slot}")
+                        continue
+                    
+                    hour, minute = time_result
                     
                     # Create datetime for today with the booking time
-                    booking_datetime = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+                    booking_datetime = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
                     
                     # Check if booking is within the next 2 hours
                     if now <= booking_datetime <= two_hours_from_now:

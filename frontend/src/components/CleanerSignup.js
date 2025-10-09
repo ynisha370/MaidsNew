@@ -68,31 +68,42 @@ const CleanerSignup = () => {
     setLoading(true);
 
     try {
-      // Prepare cleaner-specific data
-      const { confirmPassword, ...registerData } = formData;
+      // Prepare registration data for new approval flow
+      const fullName = `${formData.first_name} ${formData.last_name}`;
+      
+      const registrationData = new URLSearchParams({
+        name: fullName,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password
+      });
 
-      // Add cleaner role and additional fields
-      const cleanerData = {
-        ...registerData,
-        role: 'cleaner',
-        experience_years: parseInt(formData.experience_years) || 0,
-        hourly_rate: parseFloat(formData.hourly_rate) || 0,
-        specializations: formData.specializations.split(',').map(s => s.trim()).filter(s => s),
-        languages: formData.languages.split(',').map(l => l.trim()).filter(l => l),
-        certifications: formData.certifications.split(',').map(c => c.trim()).filter(c => c)
-      };
+      // Call cleaner registration endpoint
+      const response = await axios.post(`${API}/cleaner/register`, registrationData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
 
-      // Register the cleaner
-      const result = await register(cleanerData);
-
-      if (result.success) {
-        toast.success('Cleaner account created successfully!');
-        navigate('/cleaner');
+      if (response.data.success) {
+        toast.success(response.data.message || 'Application submitted successfully!');
+        
+        // Show success dialog with pending approval message
+        setTimeout(() => {
+          alert(
+            '✅ Application Submitted!\n\n' +
+            'Your application has been submitted successfully.\n\n' +
+            'You will receive an email once your application is approved by our admin team.\n\n' +
+            'Thank you for your interest in joining our team!'
+          );
+          navigate('/cleaner/login');
+        }, 500);
       } else {
-        toast.error(result.error);
+        toast.error(response.data.message || 'Registration failed');
       }
     } catch (error) {
-      toast.error('Registration failed. Please try again.');
+      const errorMessage = error.response?.data?.detail || error.message || 'Registration failed. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

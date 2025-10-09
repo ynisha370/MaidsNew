@@ -229,24 +229,26 @@ const CalendarJobAssignment = () => {
     if (dropData?.type === 'calendar-slot') {
       const { cleanerId, timeSlot, isAvailable } = dropData;
 
+      // Check for warnings but allow assignment anyway (admin override)
+      const warnings = [];
+      
       if (!isAvailable) {
-        toast.error('This time slot is not available');
-        return;
+        warnings.push('Time slot is marked as unavailable');
       }
 
       // Check if there are already existing jobs in this slot
       const existingJobs = getExistingJobsForSlot(cleanerId, timeSlot);
       if (existingJobs.length > 0) {
-        toast.error('This time slot already has jobs assigned');
-        return;
+        warnings.push(`${existingJobs.length} job(s) already assigned to this slot`);
       }
 
-      // Show confirmation dialog
+      // Show confirmation dialog (with warnings if any)
       setConfirmDialog({
         job,
         cleanerId,
         timeSlot,
-        date: selectedDate
+        date: selectedDate,
+        warnings
       });
     }
   };
@@ -270,9 +272,15 @@ const CalendarJobAssignment = () => {
         notes: assignmentNotes
       };
 
-      await axios.post(`${API}/admin/calendar/assign-job`, assignmentData);
+      const response = await axios.post(`${API}/admin/calendar/assign-job`, assignmentData);
       
-      toast.success('Job assigned successfully');
+      // Handle response with warnings
+      if (response.data.warning) {
+        toast.warning(response.data.message || 'Job assigned with warnings');
+      } else {
+        toast.success('Job assigned successfully');
+      }
+      
       setConfirmDialog(null);
       setAssignmentNotes('');
       
@@ -487,6 +495,23 @@ const CalendarJobAssignment = () => {
                   </div>
                 </div>
               </div>
+
+              {confirmDialog.warnings && confirmDialog.warnings.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2 text-yellow-800 flex items-center">
+                    <AlertCircle className="w-4 h-4 mr-2" />
+                    Warnings
+                  </h4>
+                  <ul className="text-sm text-yellow-800 list-disc list-inside space-y-1">
+                    {confirmDialog.warnings.map((warning, index) => (
+                      <li key={index}>{warning}</li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-yellow-700 mt-2">
+                    You can proceed with the assignment, but be aware of these conflicts.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium mb-2">Assignment Notes (Optional)</label>

@@ -384,6 +384,185 @@ class EmailService:
         except Exception as e:
             logger.error(f"Error sending booking reminder: {e}")
             return False
+    
+    def send_cleaner_pending_approval_email(self, cleaner_email: str, cleaner_name: str) -> bool:
+        """Send email to cleaner after registration confirming pending approval"""
+        subject = "Application Received - Maids of CyFair"
+        
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
+                    <h2 style="color: #2196F3;">Application Received!</h2>
+                    <p>Hi {cleaner_name},</p>
+                    <p>Thank you for applying to join our team at Maids of CyFair!</p>
+                    <p>Your application has been received and is currently under review by our admin team.</p>
+                    <p><strong>Next Steps:</strong></p>
+                    <ul>
+                        <li>Our team will review your application within 24-48 hours</li>
+                        <li>You will receive an email notification once your application is approved</li>
+                        <li>After approval, you can log in to access your cleaner dashboard</li>
+                    </ul>
+                    <p>If you have any questions, please contact us at support@maidsofcyfair.com</p>
+                    <p>Best regards,<br>Maids of CyFair Team</p>
+                </div>
+            </body>
+        </html>
+        """
+        
+        text_content = f"Hi {cleaner_name}, Your application to Maids of CyFair has been received and is under review. You will receive an email once approved."
+        
+        return self.send_email(cleaner_email, subject, html_content, text_content)
+    
+    def send_cleaner_approved_email(self, cleaner_email: str, cleaner_name: str, login_url: str) -> bool:
+        """Send email to cleaner after admin approval"""
+        subject = "Welcome to Maids of CyFair - Application Approved!"
+        
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
+                    <h2 style="color: #4CAF50;">🎉 Congratulations!</h2>
+                    <p>Hi {cleaner_name},</p>
+                    <p>Great news! Your application has been approved by our admin team.</p>
+                    <p>You can now log in to your cleaner dashboard to:</p>
+                    <ul>
+                        <li>View assigned cleaning jobs</li>
+                        <li>Clock in/out of jobs</li>
+                        <li>Update ETAs for customers</li>
+                        <li>Track your earnings</li>
+                        <li>Manage your schedule</li>
+                    </ul>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{login_url}" style="background-color: #4CAF50; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Login to Dashboard</a>
+                    </div>
+                    <p>Welcome to the team!</p>
+                    <p>Best regards,<br>Maids of CyFair Team</p>
+                </div>
+            </body>
+        </html>
+        """
+        
+        text_content = f"Hi {cleaner_name}, Congratulations! Your application has been approved. You can now log in at {login_url}"
+        
+        return self.send_email(cleaner_email, subject, html_content, text_content)
+    
+    def send_cleaner_rejected_email(self, cleaner_email: str, cleaner_name: str, reason: str = "") -> bool:
+        """Send email to cleaner after admin rejection"""
+        subject = "Application Update - Maids of CyFair"
+        
+        reason_text = f"<p><strong>Reason:</strong> {reason}</p>" if reason else ""
+        
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
+                    <h2 style="color: #666;">Application Update</h2>
+                    <p>Hi {cleaner_name},</p>
+                    <p>Thank you for your interest in joining Maids of CyFair.</p>
+                    <p>After careful consideration, we are unable to move forward with your application at this time.</p>
+                    {reason_text}
+                    <p>We appreciate your interest and wish you the best in your future endeavors.</p>
+                    <p>If you have any questions, please contact us at support@maidsofcyfair.com</p>
+                    <p>Best regards,<br>Maids of CyFair Team</p>
+                </div>
+            </body>
+        </html>
+        """
+        
+        text_content = f"Hi {cleaner_name}, Thank you for applying to Maids of CyFair. We are unable to move forward with your application at this time."
+        
+        return self.send_email(cleaner_email, subject, html_content, text_content)
+    
+    def send_job_assigned_email(self, cleaner_email: str, cleaner_name: str, job_details: dict) -> bool:
+        """Send email to cleaner when a new job is assigned"""
+        subject = f"New Job Assigned - {job_details.get('booking_date', 'TBD')}"
+        
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
+                    <h2 style="color: #2196F3;">New Job Assigned</h2>
+                    <p>Hi {cleaner_name},</p>
+                    <p>You have been assigned a new cleaning job:</p>
+                    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                        <p><strong>Date:</strong> {job_details.get('booking_date', 'TBD')}</p>
+                        <p><strong>Time:</strong> {job_details.get('time_slot', 'TBD')}</p>
+                        <p><strong>Service:</strong> {job_details.get('house_size', '')} - {job_details.get('frequency', '')}</p>
+                        <p><strong>Amount:</strong> ${job_details.get('total_amount', 0)}</p>
+                        <p><strong>Address:</strong> {job_details.get('address_text', 'See dashboard')}</p>
+                    </div>
+                    <p>Please log in to your dashboard to view full details and prepare for the job.</p>
+                    <p>Best regards,<br>Maids of CyFair Team</p>
+                </div>
+            </body>
+        </html>
+        """
+        
+        text_content = f"Hi {cleaner_name}, You have been assigned a new job on {job_details.get('booking_date', 'TBD')} at {job_details.get('time_slot', 'TBD')}. Check your dashboard for details."
+        
+        return self.send_email(cleaner_email, subject, html_content, text_content)
+    
+    def send_job_reassigned_email(self, cleaner_email: str, cleaner_name: str, job_details: dict, reason: str = "") -> bool:
+        """Send email to cleaner when a job is removed/reassigned"""
+        subject = f"Job Reassignment Notification - {job_details.get('booking_date', 'TBD')}"
+        
+        reason_text = f"<p><strong>Reason:</strong> {reason}</p>" if reason else ""
+        
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
+                    <h2 style="color: #FF9800;">Job Reassignment</h2>
+                    <p>Hi {cleaner_name},</p>
+                    <p>The following job has been reassigned to another cleaner:</p>
+                    <div style="background-color: #fff3e0; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                        <p><strong>Date:</strong> {job_details.get('booking_date', 'TBD')}</p>
+                        <p><strong>Time:</strong> {job_details.get('time_slot', 'TBD')}</p>
+                        <p><strong>Service:</strong> {job_details.get('house_size', '')} - {job_details.get('frequency', '')}</p>
+                        <p><strong>Address:</strong> {job_details.get('address_text', 'See dashboard')}</p>
+                    </div>
+                    {reason_text}
+                    <p>This job is no longer on your schedule. Please check your dashboard for updated assignments.</p>
+                    <p>Best regards,<br>Maids of CyFair Team</p>
+                </div>
+            </body>
+        </html>
+        """
+        
+        text_content = f"Hi {cleaner_name}, The job on {job_details.get('booking_date', 'TBD')} has been reassigned to another cleaner. Check your dashboard for updates."
+        
+        return self.send_email(cleaner_email, subject, html_content, text_content)
+    
+    def send_cleaner_changed_email(self, customer_email: str, customer_name: str, old_cleaner: str, new_cleaner: str, booking_details: dict) -> bool:
+        """Send email to customer when their assigned cleaner changes"""
+        subject = f"Cleaner Assignment Update - {booking_details.get('booking_date', 'TBD')}"
+        
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px;">
+                    <h2 style="color: #2196F3;">Cleaner Assignment Update</h2>
+                    <p>Hi {customer_name},</p>
+                    <p>We wanted to inform you of a change to your upcoming cleaning appointment:</p>
+                    <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                        <p><strong>Date:</strong> {booking_details.get('booking_date', 'TBD')}</p>
+                        <p><strong>Time:</strong> {booking_details.get('time_slot', 'TBD')}</p>
+                        <p><strong>Previous Cleaner:</strong> {old_cleaner}</p>
+                        <p><strong>New Cleaner:</strong> {new_cleaner}</p>
+                    </div>
+                    <p>Your new cleaner {new_cleaner} is experienced and will provide the same high-quality service you expect.</p>
+                    <p>All other details of your booking remain the same.</p>
+                    <p>If you have any questions or concerns, please contact us.</p>
+                    <p>Best regards,<br>Maids of CyFair Team</p>
+                </div>
+            </body>
+        </html>
+        """
+        
+        text_content = f"Hi {customer_name}, Your cleaner for {booking_details.get('booking_date', 'TBD')} has been changed from {old_cleaner} to {new_cleaner}."
+        
+        return self.send_email(customer_email, subject, html_content, text_content)
 
 # Global instance
 email_service = EmailService()

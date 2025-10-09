@@ -56,9 +56,6 @@ client = AsyncIOMotorClient(
     retryReads=True                # Enable retryable reads for cloud
 )
 db = client[db_name]
-# Google Calendar Service
-from services.google_calendar_service import GoogleCalendarService
-calendar_service = GoogleCalendarService()
 
 # Stripe Configuration
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -119,14 +116,14 @@ async def health_check():
         return {
             "status": "healthy",
             "database": "connected",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         return {
             "status": "unhealthy",
             "database": "disconnected",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
 # Create a router with the /api prefix
@@ -175,15 +172,19 @@ class ServiceFrequency(str, Enum):
     WEEKLY = "weekly"
 
 class HouseSize(str, Enum):
-    SIZE_1000_1500 = "1000-1500"
-    SIZE_1500_2000 = "1500-2000"
+    SIZE_1000_2000 = "1000-2000"
     SIZE_2000_2500 = "2000-2500"
     SIZE_2500_3000 = "2500-3000"
     SIZE_3000_3500 = "3000-3500"
     SIZE_3500_4000 = "3500-4000"
     SIZE_4000_4500 = "4000-4500"
-    SIZE_5000_PLUS = "5000+"
+    SIZE_4500_5000 = "4500-5000"
+    SIZE_5000_6000 = "5000-6000"
+    SIZE_6000_8000 = "6000-8000"
     # Legacy values for backward compatibility
+    SIZE_1000_1500 = "1000-1500"  # Maps to 1000-2000
+    SIZE_1500_2000 = "1500-2000"  # Maps to 1000-2000
+    SIZE_5000_PLUS = "5000+"      # Maps to 5000-6000
     SMALL = "small"
     MEDIUM = "medium"
     LARGE = "large"
@@ -247,6 +248,7 @@ class Service(BaseModel):
     duration_hours: Optional[float] = None
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
 
 class BookingService(BaseModel):
     service_id: str
@@ -302,6 +304,9 @@ class Cleaner(BaseModel):
     last_name: str
     phone: str
     is_active: bool = True
+    is_approved: bool = False
+    approved_at: Optional[datetime] = None
+    approved_by: Optional[str] = None  # admin user_id
     rating: float = 5.0
     total_jobs: int = 0
     google_calendar_credentials: Optional[dict] = None
@@ -334,6 +339,8 @@ class CalendarEvent(BaseModel):
     status: str = "scheduled"  # scheduled, in_progress, completed, cancelled
     color: Optional[str] = "#2196F3"  # For calendar display
     notes: Optional[str] = None
+    assignment_type: Optional[str] = "manual"  # 'manual' or 'auto'
+    notified_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -502,6 +509,17 @@ def prepare_for_mongo(data):
                 data[key] = [prepare_for_mongo(item) if isinstance(item, dict) else item for item in value]
     return data
 
+def prepare_for_response(doc):
+    """Prepare MongoDB document for API response by converting ObjectId to string"""
+    if doc is None:
+        return None
+    if isinstance(doc, dict):
+        # Convert ObjectId to string
+        if '_id' in doc:
+            doc['_id'] = str(doc['_id'])
+        return doc
+    return doc
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
@@ -522,14 +540,19 @@ def get_base_price(house_size: HouseSize, frequency: ServiceFrequency) -> float:
     """Calculate base price based on house size and frequency"""
     # Base prices by house size - Updated to match provided pricing table
     size_prices = {
-        HouseSize.SIZE_1000_1500: 35,  # 1000-1500 sq ft
-        HouseSize.SIZE_1500_2000: 35,  # 1500-2000 sq ft (using same as 1000-1500 for now)
-        HouseSize.SIZE_2000_2500: 40,  # 2000-2500 sq ft
-        HouseSize.SIZE_2500_3000: 45,  # 2500-3000 sq ft
-        HouseSize.SIZE_3000_3500: 50,  # 3000-3500 sq ft
-        HouseSize.SIZE_3500_4000: 55,  # 3500-4000 sq ft
-        HouseSize.SIZE_4000_4500: 60,  # 4000-4500 sq ft
-        HouseSize.SIZE_5000_PLUS: 75   # 5000+ sq ft
+        HouseSize.SIZE_1000_2000: 35,  # 1000-1999 sq ft
+        HouseSize.SIZE_2000_2500: 40,  # 2000-2499 sq ft
+        HouseSize.SIZE_2500_3000: 45,  # 2500-2999 sq ft
+        HouseSize.SIZE_3000_3500: 50,  # 3000-3499 sq ft
+        HouseSize.SIZE_3500_4000: 55,  # 3500-3999 sq ft
+        HouseSize.SIZE_4000_4500: 60,  # 4000-4499 sq ft
+        HouseSize.SIZE_4500_5000: 65,  # 4500-4999 sq ft
+        HouseSize.SIZE_5000_6000: 75,  # 5000-5999 sq ft
+        HouseSize.SIZE_6000_8000: 90,  # 6000-8000 sq ft
+        # Legacy compatibility
+        HouseSize.SIZE_1000_1500: 35,  # Maps to 1000-2000
+        HouseSize.SIZE_1500_2000: 35,  # Maps to 1000-2000
+        HouseSize.SIZE_5000_PLUS: 75   # Maps to 5000-6000
     }
 
     base_price = size_prices.get(house_size, 35)
@@ -740,11 +763,21 @@ async def validate_promo_code(code: str, customer_id: str, subtotal: float) -> d
     
     # 4. Date validation
     now = datetime.now(timezone.utc)
-    if promo.get("valid_from") and now < promo["valid_from"]:
-        return {"valid": False, "message": "Promo code is not yet valid"}
     
-    if promo.get("valid_until") and now > promo["valid_until"]:
-        return {"valid": False, "message": "Promo code has expired"}
+    # Convert string dates to datetime objects for comparison
+    if promo.get("valid_from"):
+        valid_from = promo["valid_from"]
+        if isinstance(valid_from, str):
+            valid_from = datetime.fromisoformat(valid_from.replace('Z', '+00:00'))
+        if now < valid_from:
+            return {"valid": False, "message": "Promo code is not yet valid"}
+    
+    if promo.get("valid_until"):
+        valid_until = promo["valid_until"]
+        if isinstance(valid_until, str):
+            valid_until = datetime.fromisoformat(valid_until.replace('Z', '+00:00'))
+        if now > valid_until:
+            return {"valid": False, "message": "Promo code has expired"}
     
     # 5. Usage limit validation
     if promo.get("usage_limit") and promo.get("usage_count", 0) >= promo["usage_limit"]:
@@ -1110,14 +1143,19 @@ async def login(user_data: UserLogin):
     # Create access token
     access_token = create_access_token(data={"sub": user["id"]})
     
-    # Return user data without password
+    # Return user data without password and MongoDB _id
+    # Remove MongoDB-specific fields that can't be JSON serialized
+    user_dict = dict(user)
+    user_dict.pop("_id", None)  # Remove MongoDB _id field
+    user_dict.pop("password_hash", None)  # Remove password hash
+    
     user_response = {
-        "id": user["id"],
-        "email": user["email"],
-        "first_name": user["first_name"],
-        "last_name": user["last_name"],
-        "phone": user.get("phone"),
-        "role": user.get("role", "customer")
+        "id": user_dict["id"],
+        "email": user_dict["email"],
+        "first_name": user_dict["first_name"],
+        "last_name": user_dict["last_name"],
+        "phone": user_dict.get("phone"),
+        "role": user_dict.get("role", "customer")
     }
     
     return AuthResponse(access_token=access_token, user=user_response)
@@ -1454,7 +1492,7 @@ async def update_promo_code(promo_id: str, promo_data: dict, admin_user: User = 
         raise HTTPException(status_code=404, detail="Promo code not found")
     
     # Update promo code
-    promo_data["updated_at"] = datetime.utcnow().isoformat()
+    promo_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = await db.promo_codes.update_one(
         {"id": promo_id},
         {"$set": promo_data}
@@ -1473,7 +1511,7 @@ async def toggle_promo_code_status(promo_id: str, update_data: dict, admin_user:
     """Toggle promo code active status"""
     result = await db.promo_codes.update_one(
         {"id": promo_id},
-        {"$set": {**update_data, "updated_at": datetime.utcnow().isoformat()}}
+        {"$set": {**update_data, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     if result.matched_count == 0:
@@ -1897,6 +1935,88 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
     
     await db.bookings.insert_one(booking_dict)
     
+    # Auto-assign best available cleaner
+    assigned_cleaner_id = None
+    assigned_cleaner_name = None
+    try:
+        cleaner_id = await auto_assign_best_cleaner(booking_data['booking_date'], booking_data['time_slot'])
+        if cleaner_id:
+            # Update booking with assigned cleaner
+            await db.bookings.update_one(
+                {"id": booking.id},
+                {
+                    "$set": {
+                        "cleaner_id": cleaner_id,
+                        "status": "confirmed"
+                    }
+                }
+            )
+            
+            # Update cleaner availability
+            await db.cleaner_availability.update_one(
+                {
+                    "cleaner_id": cleaner_id,
+                    "date": booking_data['booking_date'],
+                    "time_slot": booking_data['time_slot']
+                },
+                {"$set": {"is_booked": True, "booking_id": booking.id}}
+            )
+            
+            # Create calendar event
+            cleaner = await db.cleaners.find_one({"id": cleaner_id})
+            assigned_cleaner_name = f"{cleaner.get('first_name', '')} {cleaner.get('last_name', '')}"
+            
+            # Parse time slot to get start and end times
+            time_parts = booking_data['time_slot'].split('-')
+            start_time_str = time_parts[0].strip()
+            end_time_str = time_parts[1].strip() if len(time_parts) > 1 else start_time_str
+            
+            # Create start and end datetime objects
+            booking_datetime = datetime.strptime(booking_data['booking_date'], "%Y-%m-%d")
+            start_hour = int(start_time_str.split(':')[0])
+            end_hour = int(end_time_str.split(':')[0])
+            
+            start_datetime = booking_datetime.replace(hour=start_hour, minute=0)
+            end_datetime = booking_datetime.replace(hour=end_hour, minute=0)
+            
+            calendar_event = CalendarEvent(
+                title=f"Cleaning - {booking_data['house_size']}",
+                description=f"Service: {booking_data['house_size']} - {booking_data['frequency']}",
+                event_type="booking",
+                start_time=start_datetime,
+                end_time=end_datetime,
+                cleaner_id=cleaner_id,
+                booking_id=booking.id,
+                customer_id=customer_id,
+                status="scheduled",
+                assignment_type="auto",
+                notified_at=datetime.now(timezone.utc)
+            )
+            
+            await db.calendar_events.insert_one(prepare_for_mongo(calendar_event.model_dump()))
+            
+            # Send email notification to cleaner
+            try:
+                address_text = f"{booking_dict.get('address', {}).get('street', '')}, {booking_dict.get('address', {}).get('city', '')}, {booking_dict.get('address', {}).get('state', '')}"
+                job_details = {
+                    "booking_date": booking_data['booking_date'],
+                    "time_slot": booking_data['time_slot'],
+                    "house_size": booking_data['house_size'],
+                    "frequency": booking_data['frequency'],
+                    "total_amount": final_total,
+                    "address_text": address_text
+                }
+                email_service.send_job_assigned_email(cleaner.get('email'), assigned_cleaner_name, job_details)
+            except Exception as e:
+                print(f"Failed to send job assignment email: {str(e)}")
+            
+            assigned_cleaner_id = cleaner_id
+            print(f"Auto-assigned cleaner {assigned_cleaner_name} to booking {booking.id}")
+        else:
+            print(f"No available cleaner for booking {booking.id} - will remain unassigned")
+    except Exception as e:
+        print(f"Error during auto-assignment: {str(e)}")
+    
     # Record promo code usage if applicable
     if promo_code_id and discount_amount > 0:
         usage = PromoCodeUsage(
@@ -1940,7 +2060,17 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
             # Log error but don't fail the booking creation
             print(f"Failed to create payment intent: {str(e)}")
     
-    return booking
+    # Include assigned cleaner info in response
+    booking_response = booking.model_dump()
+    if assigned_cleaner_id:
+        booking_response['assigned_cleaner'] = {
+            'id': assigned_cleaner_id,
+            'name': assigned_cleaner_name
+        }
+        booking_response['cleaner_id'] = assigned_cleaner_id
+        booking_response['status'] = 'confirmed'
+    
+    return Booking(**booking_response)
 
 @api_router.get("/bookings", response_model=List[Booking])
 async def get_user_bookings(current_user: User = Depends(get_current_user)):
@@ -2455,13 +2585,91 @@ async def get_all_bookings(admin_user: User = Depends(get_admin_user)):
 
 @api_router.patch("/admin/bookings/{booking_id}")
 async def update_booking(booking_id: str, update_data: dict, admin_user: User = Depends(get_admin_user)):
+    # Get current booking to check for cleaner reassignment
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    old_cleaner_id = booking.get("cleaner_id")
+    new_cleaner_id = update_data.get("cleaner_id")
+    
+    # Update booking
     result = await db.bookings.update_one(
         {"id": booking_id},
-        {"$set": {**update_data, "updated_at": datetime.utcnow().isoformat()}}
+        {"$set": {**update_data, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # If cleaner was changed, send notifications
+    if new_cleaner_id and new_cleaner_id != old_cleaner_id:
+        try:
+            # Get booking details for emails
+            job_details = {
+                "booking_date": booking.get("booking_date"),
+                "time_slot": booking.get("time_slot"),
+                "house_size": booking.get("house_size"),
+                "frequency": booking.get("frequency"),
+                "total_amount": booking.get("total_amount"),
+                "address_text": f"{booking.get('address', {}).get('street', '')}, {booking.get('address', {}).get('city', '')}"
+            }
+            
+            # Send email to new cleaner
+            new_cleaner = await db.cleaners.find_one({"id": new_cleaner_id})
+            if new_cleaner:
+                new_cleaner_name = f"{new_cleaner.get('first_name', '')} {new_cleaner.get('last_name', '')}"
+                email_service.send_job_assigned_email(
+                    new_cleaner.get('email'),
+                    new_cleaner_name,
+                    job_details
+                )
+                print(f"Sent assignment email to new cleaner: {new_cleaner_name}")
+            
+            # Send email to old cleaner if exists
+            if old_cleaner_id:
+                old_cleaner = await db.cleaners.find_one({"id": old_cleaner_id})
+                if old_cleaner:
+                    old_cleaner_name = f"{old_cleaner.get('first_name', '')} {old_cleaner.get('last_name', '')}"
+                    email_service.send_job_reassigned_email(
+                        old_cleaner.get('email'),
+                        old_cleaner_name,
+                        job_details,
+                        "Job has been reassigned to another cleaner"
+                    )
+                    print(f"Sent reassignment email to old cleaner: {old_cleaner_name}")
+            
+            # Send email to customer
+            customer_id = booking.get("customer_id")
+            if customer_id:
+                # Check if it's a guest or registered user
+                if customer_id.startswith("guest_"):
+                    # Guest customer - get info from booking
+                    customer_email = booking.get("customer", {}).get("email")
+                    customer_name = f"{booking.get('customer', {}).get('first_name', '')} {booking.get('customer', {}).get('last_name', '')}"
+                else:
+                    # Registered user
+                    customer = await db.users.find_one({"id": customer_id})
+                    if customer:
+                        customer_email = customer.get("email")
+                        customer_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}"
+                    else:
+                        customer_email = None
+                        customer_name = "Customer"
+                
+                if customer_email:
+                    old_cleaner_name = f"{old_cleaner.get('first_name', '')} {old_cleaner.get('last_name', '')}" if old_cleaner_id and old_cleaner else "Previous Cleaner"
+                    email_service.send_cleaner_changed_email(
+                        customer_email,
+                        customer_name,
+                        old_cleaner_name,
+                        new_cleaner_name,
+                        job_details
+                    )
+                    print(f"Sent cleaner change email to customer: {customer_name}")
+                    
+        except Exception as e:
+            print(f"Error sending reassignment notifications: {str(e)}")
     
     return {"message": "Booking updated successfully"}
 
@@ -2502,6 +2710,116 @@ async def delete_cleaner(cleaner_id: str, admin_user: User = Depends(get_admin_u
         raise HTTPException(status_code=404, detail="Cleaner not found")
     return {"message": "Cleaner deleted successfully"}
 
+@api_router.get("/admin/cleaners/pending")
+async def get_pending_cleaners(admin_user: User = Depends(get_admin_user)):
+    """Get all cleaners pending approval"""
+    try:
+        pending_cleaners = await db.cleaners.find({"is_approved": False}).sort("created_at", -1).to_list(1000)
+        
+        result = []
+        for cleaner in pending_cleaners:
+            result.append({
+                "id": cleaner.get("id"),
+                "email": cleaner.get("email"),
+                "first_name": cleaner.get("first_name"),
+                "last_name": cleaner.get("last_name"),
+                "phone": cleaner.get("phone"),
+                "created_at": cleaner.get("created_at"),
+                "is_approved": cleaner.get("is_approved", False)
+            })
+        
+        return {"pending_cleaners": result, "count": len(result)}
+    except Exception as e:
+        print(f"Error getting pending cleaners: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve pending cleaners: {str(e)}")
+
+@api_router.post("/admin/cleaners/{cleaner_id}/approve")
+async def approve_cleaner(cleaner_id: str, admin_user: User = Depends(get_admin_user)):
+    """Approve a pending cleaner"""
+    try:
+        # Find the cleaner
+        cleaner = await db.cleaners.find_one({"id": cleaner_id})
+        if not cleaner:
+            raise HTTPException(status_code=404, detail="Cleaner not found")
+        
+        if cleaner.get("is_approved", False):
+            raise HTTPException(status_code=400, detail="Cleaner is already approved")
+        
+        # Update cleaner status
+        result = await db.cleaners.update_one(
+            {"id": cleaner_id},
+            {
+                "$set": {
+                    "is_approved": True,
+                    "approved_at": datetime.now(timezone.utc),
+                    "approved_by": admin_user.id
+                }
+            }
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Cleaner not found")
+        
+        # Initialize calendar availability for the cleaner (90 days)
+        try:
+            await initialize_cleaner_availability(cleaner_id)
+        except Exception as e:
+            print(f"Warning: Failed to initialize calendar availability: {e}")
+        
+        # Send approval email
+        cleaner_name = f"{cleaner.get('first_name', '')} {cleaner.get('last_name', '')}"
+        cleaner_email = cleaner.get('email')
+        login_url = os.getenv("CLEANER_PORTAL_URL", "https://maidsofcyfair.com/cleaner/login")
+        
+        try:
+            email_service.send_cleaner_approved_email(cleaner_email, cleaner_name, login_url)
+        except Exception as e:
+            print(f"Failed to send approval email: {str(e)}")
+        
+        return {
+            "success": True,
+            "message": f"Cleaner {cleaner_name} has been approved",
+            "cleaner_id": cleaner_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error approving cleaner: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to approve cleaner: {str(e)}")
+
+@api_router.post("/admin/cleaners/{cleaner_id}/reject")
+async def reject_cleaner(cleaner_id: str, reason: str = "", admin_user: User = Depends(get_admin_user)):
+    """Reject a pending cleaner"""
+    try:
+        # Find the cleaner
+        cleaner = await db.cleaners.find_one({"id": cleaner_id})
+        if not cleaner:
+            raise HTTPException(status_code=404, detail="Cleaner not found")
+        
+        cleaner_name = f"{cleaner.get('first_name', '')} {cleaner.get('last_name', '')}"
+        cleaner_email = cleaner.get('email')
+        
+        # Send rejection email
+        try:
+            email_service.send_cleaner_rejected_email(cleaner_email, cleaner_name, reason)
+        except Exception as e:
+            print(f"Failed to send rejection email: {str(e)}")
+        
+        # Delete cleaner and associated user account
+        await db.cleaners.delete_one({"id": cleaner_id})
+        await db.users.delete_one({"email": cleaner_email, "role": "cleaner"})
+        
+        return {
+            "success": True,
+            "message": f"Cleaner application rejected",
+            "cleaner_id": cleaner_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error rejecting cleaner: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reject cleaner: {str(e)}")
+
 @api_router.get("/admin/services", response_model=List[Service])
 async def get_admin_services(admin_user: User = Depends(get_admin_user)):
     services = await db.services.find().to_list(1000)
@@ -2519,6 +2837,73 @@ async def create_service(service_data: dict, admin_user: User = Depends(get_admi
     service_dict = prepare_for_mongo(service.dict())
     await db.services.insert_one(service_dict)
     return service
+
+@api_router.put("/admin/services/{service_id}")
+async def update_service(service_id: str, service_data: dict, admin_user: User = Depends(get_admin_user)):
+    """Update an existing service"""
+    try:
+        # Check if service exists
+        existing_service = await db.services.find_one({"id": service_id})
+        if not existing_service:
+            raise HTTPException(status_code=404, detail=f"Service not found: {service_id}")
+        
+        # Update the service
+        update_data = service_data.copy()
+        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        result = await db.services.update_one(
+            {"id": service_id},
+            {"$set": update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail=f"Service not found: {service_id}")
+        
+        # Return updated service
+        updated_service = await db.services.find_one({"id": service_id})
+        
+        return {
+            "success": True,
+            "message": "Service updated successfully",
+            "service": prepare_for_response(updated_service)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating service: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update service: {str(e)}")
+
+@api_router.patch("/admin/services/{service_id}")
+async def patch_service(service_id: str, service_data: dict, admin_user: User = Depends(get_admin_user)):
+    """Partially update an existing service"""
+    try:
+        # Add timestamp
+        service_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        # Update the service directly
+        result = await db.services.update_one(
+            {"id": service_id},
+            {"$set": service_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail=f"Service not found: {service_id}")
+        
+        # Return updated service
+        updated_service = await db.services.find_one({"id": service_id})
+        
+        return {
+            "success": True,
+            "message": "Service updated successfully",
+            "service": prepare_for_response(updated_service)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error patching service: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to update service: {str(e)}")
 
 @api_router.delete("/admin/services/{service_id}")
 async def delete_service(service_id: str, admin_user: User = Depends(get_admin_user)):
@@ -2555,7 +2940,7 @@ async def get_tickets(admin_user: User = Depends(get_admin_user)):
 async def update_ticket(ticket_id: str, update_data: dict, admin_user: User = Depends(get_admin_user)):
     result = await db.tickets.update_one(
         {"id": ticket_id},
-        {"$set": {**update_data, "updated_at": datetime.utcnow().isoformat()}}
+        {"$set": {**update_data, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     if result.matched_count == 0:
@@ -2585,175 +2970,121 @@ async def export_bookings(admin_user: User = Depends(get_admin_user)):
     
     return {"data": csv_data, "filename": f"bookings_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"}
 
-# Enhanced Google Calendar Integration Endpoints
-@api_router.post("/admin/cleaners/{cleaner_id}/calendar/setup")
-async def setup_cleaner_calendar(
-    cleaner_id: str, 
-    calendar_data: dict, 
-    admin_user: User = Depends(get_admin_user)
-):
-    """Setup Google Calendar integration for a cleaner"""
-    try:
-        credentials = calendar_data.get('credentials')
-        calendar_id = calendar_data.get('calendar_id', 'primary')
-        
-        if not credentials:
-            raise HTTPException(status_code=400, detail="Google Calendar credentials required")
-        
-        # Validate credentials
-        if not calendar_service.validate_credentials(credentials):
-            raise HTTPException(status_code=400, detail="Invalid Google Calendar credentials")
-        
-        # Update cleaner with calendar info
-        result = await db.cleaners.update_one(
-            {"id": cleaner_id},
-            {"$set": {
-                "google_calendar_credentials": credentials,
-                "google_calendar_id": calendar_id,
-                "calendar_integration_enabled": True
-            }}
-        )
-        
-        if result.matched_count == 0:
-            raise HTTPException(status_code=404, detail="Cleaner not found")
-        
-        return {"message": "Calendar integration setup successfully"}
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to setup calendar: {str(e)}")
-
-@api_router.get("/admin/cleaners/{cleaner_id}/calendar/events")
-async def get_cleaner_calendar_events(
-    cleaner_id: str,
-    days_ahead: int = 7,
-    admin_user: User = Depends(get_admin_user)
-):
-    """Get calendar events for a cleaner"""
-    try:
-        # Get cleaner info
-        cleaner = await db.cleaners.find_one({"id": cleaner_id})
-        if not cleaner:
-            raise HTTPException(status_code=404, detail="Cleaner not found")
-        
-        if not cleaner.get('calendar_integration_enabled'):
-            return {"events": [], "message": "Calendar integration not enabled"}
-        
-        credentials = cleaner.get('google_calendar_credentials')
-        calendar_id = cleaner.get('google_calendar_id', 'primary')
-        
-        if not credentials:
-            return {"events": [], "message": "No calendar credentials found"}
-        
-        # Get calendar service
-        service = calendar_service.create_service_from_credentials_dict(credentials)
-        if not service:
-            return {"events": [], "message": "Failed to connect to calendar"}
-        
-        # Get events
-        events = calendar_service.get_calendar_events(service, calendar_id, days_ahead)
-        
-        return {
-            "events": events,
-            "cleaner_id": cleaner_id,
-            "calendar_id": calendar_id,
-            "days_ahead": days_ahead
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get calendar events: {str(e)}")
+# Custom Calendar Endpoints (Google Calendar removed)
 
 @api_router.get("/admin/calendar/availability-summary")
 async def get_availability_summary(
     date: str,
     admin_user: User = Depends(get_admin_user)
 ):
-    """Get availability summary for all cleaners for a specific date"""
+    """Get availability summary for all cleaners for a specific date using custom calendar (optimized)"""
     try:
         # Get all active cleaners
         cleaners = await db.cleaners.find({"is_active": True}).to_list(1000)
         
         time_slots = ["08:00-10:00", "10:00-12:00", "12:00-14:00", "14:00-16:00", "16:00-18:00"]
         
+        job_date = datetime.fromisoformat(date)
+        date_str = job_date.strftime("%Y-%m-%d")
+        
+        # OPTIMIZATION: Fetch all data in bulk queries instead of per-cleaner queries
+        # Get all cleaner IDs
+        cleaner_ids = [cleaner["id"] for cleaner in cleaners]
+        
+        # Fetch ALL bookings for ALL cleaners for this date in ONE query
+        all_bookings = await db.bookings.find({
+            "cleaner_id": {"$in": cleaner_ids},
+            "booking_date": date_str
+        }).to_list(1000)
+        
+        # Fetch ALL availability records for ALL cleaners for this date in ONE query
+        all_availability = await db.cleaner_availability.find({
+            "cleaner_id": {"$in": cleaner_ids},
+            "date": date_str
+        }).to_list(1000)
+        
+        # Organize bookings by cleaner_id and time_slot for fast lookup
+        bookings_map = {}
+        for booking in all_bookings:
+            cleaner_id = booking.get("cleaner_id")
+            time_slot = booking.get("time_slot")
+            if cleaner_id not in bookings_map:
+                bookings_map[cleaner_id] = {}
+            if time_slot not in bookings_map[cleaner_id]:
+                bookings_map[cleaner_id][time_slot] = []
+            bookings_map[cleaner_id][time_slot].append(booking)
+        
+        # Organize availability by cleaner_id and time_slot for fast lookup
+        availability_map = {}
+        for avail in all_availability:
+            cleaner_id = avail.get("cleaner_id")
+            time_slot = avail.get("time_slot")
+            if cleaner_id not in availability_map:
+                availability_map[cleaner_id] = {}
+            availability_map[cleaner_id][time_slot] = avail
+        
+        # Build response using the pre-fetched data
         cleaner_availability = []
         
         for cleaner in cleaners:
-            cleaner_data = {
-                "cleaner_id": cleaner["id"],
-                "cleaner_name": f"{cleaner['first_name']} {cleaner['last_name']}",
-                "calendar_enabled": cleaner.get('calendar_integration_enabled', False),
-                "slots": {}
-            }
-            
-            if cleaner.get('calendar_integration_enabled') and cleaner.get('google_calendar_credentials'):
-                # Check availability for each time slot
-                credentials = cleaner['google_calendar_credentials']
-                service = calendar_service.create_service_from_credentials_dict(credentials)
+            try:
+                cleaner_id = cleaner["id"]
+                cleaner_data = {
+                    "cleaner_id": cleaner_id,
+                    "cleaner_name": f"{cleaner['first_name']} {cleaner['last_name']}",
+                    "calendar_enabled": True,  # Using custom calendar for all cleaners
+                    "slots": {}
+                }
 
-                if service:
-                    for slot in time_slots:
-                        start_time, end_time = slot.split('-')
-                        job_date = datetime.fromisoformat(date)
-                        start_datetime = datetime.combine(job_date.date(), datetime.strptime(start_time, "%H:%M").time())
-                        end_datetime = datetime.combine(job_date.date(), datetime.strptime(end_time, "%H:%M").time())
+                for slot in time_slots:
+                    try:
+                        # Get existing jobs from pre-fetched data
+                        existing_jobs = bookings_map.get(cleaner_id, {}).get(slot, [])
+                        
+                        # Get availability record from pre-fetched data
+                        availability_record = availability_map.get(cleaner_id, {}).get(slot)
 
-                        is_available = calendar_service.check_availability(
-                            service,
-                            cleaner.get('google_calendar_id', 'primary'),
-                            start_datetime,
-                            end_datetime
-                        )
+                        # Determine availability:
+                        # 1. If there are existing jobs, mark as unavailable (booked)
+                        # 2. If manual availability is set to False, mark as unavailable
+                        # 3. If manual availability is True and no jobs, mark as available
+                        # 4. If no availability record exists, default to available
+                        
+                        is_available = True  # Default to available
+                        
+                        if len(existing_jobs) > 0:
+                            # Has bookings, definitely unavailable
+                            is_available = False
+                        elif availability_record:
+                            # Check manual availability setting
+                            is_available = availability_record.get('is_available', True) and not availability_record.get('is_booked', False)
 
-                        # Check for existing jobs in this time slot
-                        existing_jobs = await db.bookings.find({
-                            "cleaner_id": cleaner["id"],
-                            "booking_date": job_date.strftime("%Y-%m-%d"),
-                            "time_slot": slot
-                        }).to_list(10)
+                        # Format existing jobs for response (remove MongoDB _id field)
+                        formatted_jobs = []
+                        for job in existing_jobs:
+                            job_dict = dict(job)
+                            job_dict.pop("_id", None)
+                            formatted_jobs.append(job_dict)
 
                         cleaner_data["slots"][slot] = {
                             "available": is_available,
-                            "existing_jobs": existing_jobs
+                            "existing_jobs": formatted_jobs,
+                            "manual_blocked": availability_record.get('is_available', True) == False if availability_record else False
                         }
-                else:
-                    # If calendar service failed, mark all as available for testing
-                    # In production, you might want to check existing bookings instead
-                    for slot in time_slots:
-                        # Check for existing jobs in this time slot
-                        job_date = datetime.fromisoformat(date)
-                        existing_jobs = await db.bookings.find({
-                            "cleaner_id": cleaner["id"],
-                            "booking_date": job_date.strftime("%Y-%m-%d"),
-                            "time_slot": slot
-                        }).to_list(10)
-
+                    except Exception as slot_error:
+                        print(f"Warning: Error processing slot {slot} for cleaner {cleaner_id}: {slot_error}")
+                        # Add empty slot data if there's an error
                         cleaner_data["slots"][slot] = {
-                            "available": True,  # Default to available for testing
-                            "existing_jobs": existing_jobs
+                            "available": True,  # Default to available on error
+                            "existing_jobs": [],
+                            "manual_blocked": False
                         }
-            else:
-                # If no calendar integration, check database for existing jobs and mark availability as unknown
-                for slot in time_slots:
-                    start_time, end_time = slot.split('-')
-                    job_date = datetime.fromisoformat(date)
-                    start_datetime = datetime.combine(job_date.date(), datetime.strptime(start_time, "%H:%M").time())
-                    end_datetime = datetime.combine(job_date.date(), datetime.strptime(end_time, "%H:%M").time())
-
-                    existing_jobs = await db.bookings.find({
-                        "cleaner_id": cleaner["id"],
-                        "booking_date": job_date.strftime("%Y-%m-%d"),
-                        "time_slot": slot
-                    }).to_list(10)
-
-                    cleaner_data["slots"][slot] = {
-                        "available": None,  # Unknown availability for non-calendar users
-                        "existing_jobs": existing_jobs
-                    }
-            
-            cleaner_availability.append(cleaner_data)
+                
+                cleaner_availability.append(cleaner_data)
+            except Exception as cleaner_error:
+                print(f"Warning: Error processing cleaner {cleaner.get('id', 'unknown')}: {cleaner_error}")
+                # Skip this cleaner and continue with the next one
+                continue
         
         return {
             "date": date,
@@ -2762,6 +3093,7 @@ async def get_availability_summary(
         }
     
     except Exception as e:
+        print(f"Error in get_availability_summary: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get availability summary: {str(e)}")
 
 @api_router.post("/admin/calendar/assign-job")
@@ -2769,7 +3101,7 @@ async def assign_job_to_calendar(
     assignment_data: JobAssignment,
     admin_user: User = Depends(get_admin_user)
 ):
-    """Assign a job to a cleaner's calendar with drag-and-drop functionality"""
+    """Assign a job to a cleaner's calendar with drag-and-drop functionality (custom calendar)"""
     try:
         # Get booking details
         booking = await db.bookings.find_one({"id": assignment_data.booking_id})
@@ -2781,66 +3113,46 @@ async def assign_job_to_calendar(
         if not cleaner:
             raise HTTPException(status_code=404, detail="Cleaner not found")
         
-        # Check if cleaner has calendar integration
-        if not cleaner.get('calendar_integration_enabled') or not cleaner.get('google_calendar_credentials'):
-            raise HTTPException(status_code=400, detail="Cleaner doesn't have calendar integration enabled")
+        # Extract date and time slot from assignment data
+        start_dt = assignment_data.start_time
+        end_dt = assignment_data.end_time
+        booking_date = start_dt.strftime("%Y-%m-%d")
+        time_slot = f"{start_dt.strftime('%H:%M')}-{end_dt.strftime('%H:%M')}"
         
-        # Get calendar service
-        credentials = cleaner['google_calendar_credentials']
-        service = calendar_service.create_service_from_credentials_dict(credentials)
+        # Check if slot is available or already booked (for warning)
+        warning_message = None
         
-        if not service:
-            # For testing purposes, allow assignment even if calendar service fails
-            # In production, you might want to require working calendar integration
-            print("Warning: Calendar service unavailable, but allowing assignment for testing")
+        # Check for existing bookings in this slot
+        existing_bookings = await db.bookings.find({
+            "cleaner_id": assignment_data.cleaner_id,
+            "booking_date": booking_date,
+            "time_slot": time_slot,
+            "id": {"$ne": assignment_data.booking_id}  # Exclude current booking
+        }).to_list(10)
         
-        # Check availability for the requested time
-        if service:
-            is_available = calendar_service.check_availability(
-                service,
-                cleaner.get('google_calendar_id', 'primary'),
-                assignment_data.start_time,
-                assignment_data.end_time
-            )
-        else:
-            # For testing, assume available if service is not available
-            is_available = True
+        if len(existing_bookings) > 0:
+            warning_message = f"Warning: Cleaner already has {len(existing_bookings)} booking(s) in this time slot"
         
-        if not is_available:
-            raise HTTPException(status_code=409, detail="Cleaner is not available during the requested time")
+        # Check manual availability
+        availability_record = await db.cleaner_availability.find_one({
+            "cleaner_id": assignment_data.cleaner_id,
+            "date": booking_date,
+            "time_slot": time_slot
+        })
         
-        # Create calendar event
-        job_data = {
-            "job_id": booking["id"],
-            "customer_name": f"Customer {booking.get('customer_id', '')[:8]}",
-            "address": f"{booking.get('address', {}).get('street', '')} {booking.get('address', {}).get('city', '')}",
-            "services": f"{booking.get('house_size', '')} - {booking.get('frequency', '')}",
-            "amount": booking.get('total_amount', 0),
-            "instructions": booking.get('special_instructions', 'None'),
-            "start_time": assignment_data.start_time.isoformat(),
-            "end_time": assignment_data.end_time.isoformat()
-        }
+        if availability_record and not availability_record.get('is_available', True):
+            if warning_message:
+                warning_message += " and slot is manually marked as unavailable"
+            else:
+                warning_message = "Warning: This time slot is manually marked as unavailable"
         
-        if service:
-            event_id = calendar_service.create_job_event(
-                service,
-                cleaner.get('google_calendar_id', 'primary'),
-                job_data
-            )
-        else:
-            # For testing, create a mock event ID
-            event_id = f"mock_event_{booking['id']}"
-        
-        if not event_id:
-            # For testing, use a fallback event ID
-            event_id = f"fallback_event_{booking['id']}_{datetime.utcnow().isoformat()}"
-        
-        # Update booking with cleaner assignment and calendar event
+        # Update booking with cleaner assignment
         update_data = {
             "cleaner_id": assignment_data.cleaner_id,
-            "calendar_event_id": event_id,
+            "booking_date": booking_date,
+            "time_slot": time_slot,
             "status": "confirmed",
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
         if assignment_data.notes:
@@ -2851,18 +3163,51 @@ async def assign_job_to_calendar(
             {"$set": update_data}
         )
         
-        return {
-            "message": "Job assigned successfully",
+        # Update cleaner_availability to mark as booked
+        if availability_record:
+            await db.cleaner_availability.update_one(
+                {
+                    "cleaner_id": assignment_data.cleaner_id,
+                    "date": booking_date,
+                    "time_slot": time_slot
+                },
+                {
+                    "$set": {
+                        "is_booked": True,
+                        "booking_id": assignment_data.booking_id,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }
+                }
+            )
+        else:
+            # Create availability record if it doesn't exist
+            new_availability = CleanerAvailability(
+                cleaner_id=assignment_data.cleaner_id,
+                date=booking_date,
+                time_slot=time_slot,
+                is_available=True,
+                is_booked=True,
+                booking_id=assignment_data.booking_id
+            )
+            await db.cleaner_availability.insert_one(prepare_for_mongo(new_availability.dict()))
+        
+        response_data = {
+            "message": "Job assigned successfully" if not warning_message else f"Job assigned with warning: {warning_message}",
             "booking_id": assignment_data.booking_id,
             "cleaner_id": assignment_data.cleaner_id,
-            "calendar_event_id": event_id,
+            "booking_date": booking_date,
+            "time_slot": time_slot,
             "start_time": assignment_data.start_time.isoformat(),
-            "end_time": assignment_data.end_time.isoformat()
+            "end_time": assignment_data.end_time.isoformat(),
+            "warning": warning_message
         }
+        
+        return response_data
     
     except HTTPException:
         raise
     except Exception as e:
+        print(f"Error in assign_job_to_calendar: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to assign job: {str(e)}")
 
 @api_router.get("/admin/calendar/unassigned-jobs")
@@ -2896,6 +3241,165 @@ async def get_unassigned_jobs(admin_user: User = Depends(get_admin_user)):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get unassigned jobs: {str(e)}")
+
+# Cleaner Availability Management Endpoints
+@api_router.get("/admin/cleaners/{cleaner_id}/availability")
+async def get_cleaner_availability(
+    cleaner_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get cleaner availability for a date range"""
+    try:
+        # Get cleaner
+        cleaner = await db.cleaners.find_one({"id": cleaner_id})
+        if not cleaner:
+            raise HTTPException(status_code=404, detail="Cleaner not found")
+        
+        # Default to current week if no dates provided
+        if not start_date:
+            start_date = datetime.now().strftime("%Y-%m-%d")
+        if not end_date:
+            end_date = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
+        
+        # Get availability records
+        availability_records = await db.cleaner_availability.find({
+            "cleaner_id": cleaner_id,
+            "date": {"$gte": start_date, "$lte": end_date}
+        }).sort("date", 1).to_list(1000)
+        
+        # Format records
+        formatted_records = []
+        for record in availability_records:
+            record_dict = dict(record)
+            record_dict.pop("_id", None)
+            formatted_records.append(record_dict)
+        
+        return {
+            "cleaner_id": cleaner_id,
+            "cleaner_name": f"{cleaner['first_name']} {cleaner['last_name']}",
+            "start_date": start_date,
+            "end_date": end_date,
+            "availability": formatted_records
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get cleaner availability: {str(e)}")
+
+@api_router.post("/admin/cleaners/{cleaner_id}/availability")
+async def set_cleaner_availability(
+    cleaner_id: str,
+    availability_data: Dict[str, Any],
+    admin_user: User = Depends(get_admin_user)
+):
+    """Set manual availability for a cleaner (bulk update)"""
+    try:
+        # Get cleaner
+        cleaner = await db.cleaners.find_one({"id": cleaner_id})
+        if not cleaner:
+            raise HTTPException(status_code=404, detail="Cleaner not found")
+        
+        # Extract data
+        date = availability_data.get("date")
+        time_slots = availability_data.get("time_slots", [])
+        is_available = availability_data.get("is_available", True)
+        
+        if not date or not time_slots:
+            raise HTTPException(status_code=400, detail="Date and time_slots are required")
+        
+        # Update or create availability records
+        updated_count = 0
+        for time_slot in time_slots:
+            # Check if record exists
+            existing = await db.cleaner_availability.find_one({
+                "cleaner_id": cleaner_id,
+                "date": date,
+                "time_slot": time_slot
+            })
+            
+            if existing:
+                # Update existing record
+                await db.cleaner_availability.update_one(
+                    {
+                        "cleaner_id": cleaner_id,
+                        "date": date,
+                        "time_slot": time_slot
+                    },
+                    {
+                        "$set": {
+                            "is_available": is_available,
+                            "updated_at": datetime.now(timezone.utc).isoformat()
+                        }
+                    }
+                )
+            else:
+                # Create new record
+                new_record = CleanerAvailability(
+                    cleaner_id=cleaner_id,
+                    date=date,
+                    time_slot=time_slot,
+                    is_available=is_available,
+                    is_booked=False
+                )
+                await db.cleaner_availability.insert_one(prepare_for_mongo(new_record.dict()))
+            
+            updated_count += 1
+        
+        return {
+            "message": f"Updated {updated_count} time slots",
+            "cleaner_id": cleaner_id,
+            "date": date,
+            "is_available": is_available
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to set cleaner availability: {str(e)}")
+
+@api_router.patch("/admin/cleaners/{cleaner_id}/availability/{availability_id}")
+async def toggle_cleaner_availability(
+    cleaner_id: str,
+    availability_id: str,
+    update_data: Dict[str, Any],
+    admin_user: User = Depends(get_admin_user)
+):
+    """Toggle a single availability slot"""
+    try:
+        # Get cleaner
+        cleaner = await db.cleaners.find_one({"id": cleaner_id})
+        if not cleaner:
+            raise HTTPException(status_code=404, detail="Cleaner not found")
+        
+        # Update availability record
+        is_available = update_data.get("is_available")
+        if is_available is None:
+            raise HTTPException(status_code=400, detail="is_available is required")
+        
+        result = await db.cleaner_availability.update_one(
+            {"id": availability_id, "cleaner_id": cleaner_id},
+            {"$set": {
+                "is_available": is_available,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Availability record not found")
+        
+        return {
+            "message": "Availability updated successfully",
+            "availability_id": availability_id,
+            "is_available": is_available
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update availability: {str(e)}")
 
 # Invoice Management Endpoints
 @api_router.get("/admin/invoices", response_model=List[Invoice])
@@ -2984,7 +3488,7 @@ async def generate_invoice_for_booking(
             tax_amount=tax_amount,
             total_amount=total_amount,
             status=InvoiceStatus.DRAFT,
-            due_date=datetime.utcnow() + timedelta(days=30),  # 30 days from creation
+            due_date=datetime.now(timezone.utc) + timedelta(days=30),  # 30 days from creation
             notes=f"Invoice for cleaning services on {booking.get('booking_date', '')}"
         )
         
@@ -3009,9 +3513,9 @@ async def update_invoice_status(
     try:
         # Add paid_date if status is being set to paid
         if update_data.get("status") == "paid" and "paid_date" not in update_data:
-            update_data["paid_date"] = datetime.utcnow().isoformat()
+            update_data["paid_date"] = datetime.now(timezone.utc).isoformat()
         
-        update_data["updated_at"] = datetime.utcnow().isoformat()
+        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         
         result = await db.invoices.update_one(
             {"id": invoice_id},
@@ -3034,6 +3538,7 @@ async def generate_invoice_pdf(
     admin_user: User = Depends(get_admin_user)
 ):
     """Generate PDF for invoice"""
+    print("DEBUG: PDF generation function called")
     try:
         from reportlab.lib.pagesizes import letter, A4
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
@@ -3304,7 +3809,43 @@ async def generate_invoice_pdf(
         story.append(Paragraph("Maids of Cy-Fair", footer_style))
         story.append(Paragraph("Professional Cleaning Services", company_address_style))
         story.append(Paragraph("Serving the Cy-Fair Area", company_address_style))
-        story.append(Paragraph("Phone: (281) 555-0123 | Email: info@maidsofcyfair.com", company_address_style))
+        story.append(Paragraph("Phone: (281) 555-TEST | Email: info@maidsofcyfair.com", company_address_style))
+        story.append(Paragraph("Follow us on Facebook: https://www.facebook.com/people/Maids-of-Cy-Fair/61551869414470/", company_address_style))
+        print("DEBUG: Added Facebook URL to PDF")
+        
+        # Add QR Code
+        try:
+            import qrcode
+            from io import BytesIO
+            
+            # Create QR code with Facebook URL
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=4,
+            )
+            qr.add_data("https://www.facebook.com/people/Maids-of-Cy-Fair/61551869414470/")
+            qr.make(fit=True)
+            
+            # Create QR code image
+            qr_img = qr.make_image(fill_color="black", back_color="white")
+            
+            # Convert to bytes
+            qr_buffer = BytesIO()
+            qr_img.save(qr_buffer, format='PNG')
+            qr_buffer.seek(0)
+            
+            # Add QR code to PDF
+            qr_image = Image(qr_buffer, width=1.5*inch, height=1.5*inch)
+            story.append(Spacer(1, 10))
+            story.append(qr_image)
+            story.append(Paragraph("Scan QR code to visit our Facebook page", company_address_style))
+            print("DEBUG: Added QR code to PDF")
+            
+        except Exception as e:
+            print(f"DEBUG: Failed to add QR code: {e}")
+            # Continue without QR code if there's an error
         
         # Build PDF
         doc.build(story)
@@ -3373,6 +3914,13 @@ async def cleaner_login(email: str, password: str):
         if not cleaner:
             raise HTTPException(status_code=404, detail="Cleaner profile not found")
         
+        # Check if cleaner is approved
+        if not cleaner.get("is_approved", False):
+            raise HTTPException(
+                status_code=403, 
+                detail="Your account is pending approval. Please wait for admin to approve your application."
+            )
+        
         # Generate token
         token = create_access_token({"sub": user["id"], "role": "cleaner"})
         
@@ -3386,7 +3934,7 @@ async def cleaner_login(email: str, password: str):
                 "rating": cleaner.get("rating", 5.0),
                 "completedJobs": cleaner.get("total_jobs", 0),
                 "isActive": cleaner.get("is_active", True),
-                "createdAt": cleaner.get("created_at", datetime.utcnow()).isoformat()
+                "createdAt": cleaner.get("created_at", datetime.now(timezone.utc)).isoformat()
             }
         }
     except HTTPException:
@@ -3401,7 +3949,7 @@ async def cleaner_register(
     phone: str,
     password: str
 ):
-    """Register a new cleaner"""
+    """Register a new cleaner - requires admin approval before login"""
     try:
         # Check if email exists
         existing_user = await db.users.find_one({"email": email})
@@ -3423,29 +3971,32 @@ async def cleaner_register(
         )
         await db.users.insert_one(prepare_for_mongo(user.dict()))
         
-        # Create cleaner profile
+        # Create cleaner profile with is_approved=False
         cleaner = Cleaner(
             email=email,
             first_name=first_name,
             last_name=last_name,
-            phone=phone
+            phone=phone,
+            is_approved=False  # Requires admin approval
         )
         await db.cleaners.insert_one(prepare_for_mongo(cleaner.dict()))
         
-        # Generate token
-        token = create_access_token({"sub": user.id, "role": "cleaner"})
+        # Send pending approval email
+        try:
+            email_service.send_cleaner_pending_approval_email(email, name)
+        except Exception as e:
+            print(f"Failed to send pending approval email: {str(e)}")
         
         return {
-            "token": token,
+            "success": True,
+            "message": "Application submitted successfully. You will receive an email once approved by admin.",
             "user": {
                 "id": cleaner.id,
                 "name": name,
                 "email": email,
                 "phone": phone,
-                "rating": 5.0,
-                "completedJobs": 0,
-                "isActive": True,
-                "createdAt": datetime.utcnow().isoformat()
+                "isApproved": False,
+                "createdAt": datetime.now(timezone.utc).isoformat()
             }
         }
     except HTTPException:
@@ -3472,7 +4023,7 @@ async def get_cleaner_profile(current_user: User = Depends(get_current_user)):
             "rating": cleaner.get("rating", 5.0),
             "completedJobs": cleaner.get("total_jobs", 0),
             "isActive": cleaner.get("is_active", True),
-            "createdAt": cleaner.get("created_at", datetime.utcnow()).isoformat()
+            "createdAt": cleaner.get("created_at", datetime.now(timezone.utc)).isoformat()
         }
     }
 
@@ -3560,10 +4111,10 @@ async def clock_in(
             {"id": jobId},
             {
                 "$set": {
-                    "clock_in_time": datetime.utcnow().isoformat(),
+                    "clock_in_time": datetime.now(timezone.utc).isoformat(),
                     "clock_in_location": {"lat": latitude, "lng": longitude},
                     "status": "in_progress",
-                    "updated_at": datetime.utcnow().isoformat()
+                    "updated_at": datetime.now(timezone.utc).isoformat()
                 }
             }
         )
@@ -3603,10 +4154,10 @@ async def clock_out(
             {"id": jobId},
             {
                 "$set": {
-                    "clock_out_time": datetime.utcnow().isoformat(),
+                    "clock_out_time": datetime.now(timezone.utc).isoformat(),
                     "clock_out_location": {"lat": latitude, "lng": longitude},
                     "status": "completed",
-                    "updated_at": datetime.utcnow().isoformat()
+                    "updated_at": datetime.now(timezone.utc).isoformat()
                 }
             }
         )
@@ -3649,7 +4200,7 @@ async def update_eta(
             {
                 "$set": {
                     "eta": eta,
-                    "updated_at": datetime.utcnow().isoformat()
+                    "updated_at": datetime.now(timezone.utc).isoformat()
                 }
             }
         )
@@ -3684,7 +4235,7 @@ async def send_message_to_client(
             "sender_type": "cleaner",
             "receiver_id": booking.get("customer_id"),
             "message": message,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "is_read": False
         }
         await db.messages.insert_one(message_doc)
@@ -3832,7 +4383,7 @@ async def get_availability(
     date: str,
     time_slot: Optional[str] = None
 ):
-    """Check availability for booking on a specific date"""
+    """Check availability for booking on a specific date using custom calendar"""
     try:
         # Get all active cleaners
         cleaners = await db.cleaners.find({"is_active": True}).to_list(1000)
@@ -3846,40 +4397,40 @@ async def get_availability(
                 "message": "No cleaners available"
             }
 
-        # Check if any cleaner has calendar integration and is available
+        # Check cleaner availability using database
         available_cleaners = 0
+        slot = time_slot or "09:00-12:00"
 
         for cleaner in cleaners:
-            if cleaner.get('calendar_integration_enabled') and cleaner.get('google_calendar_credentials'):
-                # Check Google Calendar availability
-                credentials = cleaner['google_calendar_credentials']
-                service = calendar_service.create_service_from_credentials_dict(credentials)
+            # Check cleaner_availability collection
+            availability_record = await db.cleaner_availability.find_one({
+                "cleaner_id": cleaner["id"],
+                "date": date,
+                "time_slot": slot
+            })
 
-                if service:
-                    # Parse time slot or use default
-                    slot = time_slot or "09:00-12:00"
-                    start_time, end_time = slot.split('-')
-                    job_date = datetime.fromisoformat(date)
-                    start_datetime = datetime.combine(job_date.date(), datetime.strptime(start_time, "%H:%M").time())
-                    end_datetime = datetime.combine(job_date.date(), datetime.strptime(end_time, "%H:%M").time())
+            # Check for existing bookings in this time slot
+            existing_bookings = await db.bookings.count_documents({
+                "cleaner_id": cleaner["id"],
+                "booking_date": date,
+                "time_slot": slot
+            })
 
-                    is_available = calendar_service.check_availability(
-                        service,
-                        cleaner.get('google_calendar_id', 'primary'),
-                        start_datetime,
-                        end_datetime
-                    )
+            # Cleaner is available if:
+            # 1. No existing bookings in the slot
+            # 2. Manual availability is not set to False
+            # 3. If no availability record exists, default to available
+            is_available = existing_bookings == 0
+            
+            if availability_record:
+                is_available = is_available and availability_record.get('is_available', True) and not availability_record.get('is_booked', False)
 
-                    if is_available:
-                        available_cleaners += 1
-            else:
-                # For cleaners without working calendar integration, assume they are available for testing
-                # In a real scenario, you might want to check their existing bookings
+            if is_available:
                 available_cleaners += 1
 
         return {
             "date": date,
-            "time_slot": time_slot,
+            "time_slot": slot,
             "available": available_cleaners > 0,
             "available_cleaners": available_cleaners,
             "total_cleaners": len(cleaners),
@@ -3984,7 +4535,7 @@ async def get_cleaner_payments(current_user: User = Depends(get_current_user)):
                 "amount": booking.get("total_amount", 0) * 0.7,
                 "status": "completed",
                 "type": "earnings",
-                "date": booking.get("updated_at", datetime.utcnow().isoformat()),
+                "date": booking.get("updated_at", datetime.now(timezone.utc).isoformat()),
                 "transactionId": f"TXN-{booking.get('id')[:8]}"
             }
             payments.append(payment)
@@ -4174,7 +4725,7 @@ async def block_date(
                     "$set": {
                         "is_blocked": True,
                         "blocked_reason": reason,
-                        "updated_at": datetime.utcnow().isoformat()
+                        "updated_at": datetime.now(timezone.utc).isoformat()
                     }
                 },
                 upsert=True
@@ -4187,7 +4738,7 @@ async def block_date(
                     "$set": {
                         "is_blocked": True,
                         "blocked_reason": reason,
-                        "updated_at": datetime.utcnow().isoformat()
+                        "updated_at": datetime.now(timezone.utc).isoformat()
                     }
                 }
             )
@@ -4213,7 +4764,7 @@ async def unblock_date(
                     "$set": {
                         "is_blocked": False,
                         "blocked_reason": None,
-                        "updated_at": datetime.utcnow().isoformat()
+                        "updated_at": datetime.now(timezone.utc).isoformat()
                     }
                 }
             )
@@ -4225,7 +4776,7 @@ async def unblock_date(
                     "$set": {
                         "is_blocked": False,
                         "blocked_reason": None,
-                        "updated_at": datetime.utcnow().isoformat()
+                        "updated_at": datetime.now(timezone.utc).isoformat()
                     }
                 }
             )
@@ -4322,7 +4873,10 @@ async def assign_booking_to_cleaner(
         if not booking:
             raise HTTPException(status_code=404, detail="Booking not found")
         
-        # Get cleaner
+        # Track old cleaner for notifications
+        old_cleaner_id = booking.get("cleaner_id")
+        
+        # Get new cleaner
         cleaner = await db.cleaners.find_one({"id": cleaner_id})
         if not cleaner:
             raise HTTPException(status_code=404, detail="Cleaner not found")
@@ -4345,7 +4899,7 @@ async def assign_booking_to_cleaner(
                 "$set": {
                     "cleaner_id": cleaner_id,
                     "status": "confirmed",
-                    "updated_at": datetime.utcnow().isoformat()
+                    "updated_at": datetime.now(timezone.utc).isoformat()
                 }
             }
         )
@@ -4372,27 +4926,94 @@ async def assign_booking_to_cleaner(
             customer_id=booking.get("customer_id"),
             status="scheduled",
             color="#4CAF50",
-            notes=booking.get("special_instructions")
+            notes=booking.get("special_instructions"),
+            assignment_type="manual",
+            notified_at=datetime.now(timezone.utc)
         )
         
-        await db.calendar_events.insert_one(prepare_for_mongo(calendar_event.dict()))
+        await db.calendar_events.insert_one(prepare_for_mongo(calendar_event.model_dump()))
         
         # Update time slot availability
         await db.time_slot_availability.update_one(
             {"date": booking_date, "time_slot": time_slot},
             {
                 "$inc": {"booked_count": 1},
-                "$set": {"updated_at": datetime.utcnow().isoformat()}
+                "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
             },
             upsert=True
         )
+        
+        # Send notifications if cleaner changed
+        new_cleaner_name = f"{cleaner.get('first_name', '')} {cleaner.get('last_name', '')}"
+        
+        if old_cleaner_id != cleaner_id:
+            try:
+                # Prepare job details
+                job_details = {
+                    "booking_date": booking_date,
+                    "time_slot": time_slot,
+                    "house_size": booking.get("house_size"),
+                    "frequency": booking.get("frequency"),
+                    "total_amount": booking.get("total_amount"),
+                    "address_text": f"{booking.get('address', {}).get('street', '')}, {booking.get('address', {}).get('city', '')}"
+                }
+                
+                # Send email to new cleaner
+                email_service.send_job_assigned_email(
+                    cleaner.get('email'),
+                    new_cleaner_name,
+                    job_details
+                )
+                print(f"Sent assignment email to cleaner: {new_cleaner_name}")
+                
+                # Send email to old cleaner if exists
+                if old_cleaner_id:
+                    old_cleaner = await db.cleaners.find_one({"id": old_cleaner_id})
+                    if old_cleaner:
+                        old_cleaner_name = f"{old_cleaner.get('first_name', '')} {old_cleaner.get('last_name', '')}"
+                        email_service.send_job_reassigned_email(
+                            old_cleaner.get('email'),
+                            old_cleaner_name,
+                            job_details,
+                            "Job has been reassigned to another cleaner"
+                        )
+                        print(f"Sent reassignment email to old cleaner: {old_cleaner_name}")
+                
+                # Send email to customer
+                customer_id = booking.get("customer_id")
+                if customer_id:
+                    if customer_id.startswith("guest_"):
+                        customer_email = booking.get("customer", {}).get("email")
+                        cust_name = f"{booking.get('customer', {}).get('first_name', '')} {booking.get('customer', {}).get('last_name', '')}"
+                    else:
+                        customer = await db.users.find_one({"id": customer_id})
+                        if customer:
+                            customer_email = customer.get("email")
+                            cust_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}"
+                        else:
+                            customer_email = None
+                            cust_name = "Customer"
+                    
+                    if customer_email:
+                        old_cleaner_name = f"{old_cleaner.get('first_name', '')} {old_cleaner.get('last_name', '')}" if old_cleaner_id and old_cleaner else "Previous Cleaner"
+                        email_service.send_cleaner_changed_email(
+                            customer_email,
+                            cust_name,
+                            old_cleaner_name,
+                            new_cleaner_name,
+                            job_details
+                        )
+                        print(f"Sent cleaner change email to customer")
+            except Exception as e:
+                print(f"Error sending notifications: {str(e)}")
         
         return {
             "message": "Booking assigned to cleaner successfully",
             "booking_id": booking_id,
             "cleaner_id": cleaner_id,
-            "cleaner_name": f"{cleaner.get('first_name', '')} {cleaner.get('last_name', '')}",
-            "event_created": True
+            "cleaner_name": new_cleaner_name,
+            "event_created": True,
+            "notifications_sent": old_cleaner_id != cleaner_id
         }
     
     except HTTPException:
@@ -4447,7 +5068,121 @@ async def get_calendar_events(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get calendar events: {str(e)}")
 
+# Auto-assign cleaner algorithm
+async def auto_assign_best_cleaner(booking_date: str, time_slot: str) -> Optional[str]:
+    """
+    Automatically assign the best available cleaner for a booking
+    Returns cleaner_id or None if no cleaner available
+    """
+    try:
+        # Get all approved and active cleaners
+        cleaners = await db.cleaners.find({
+            "is_approved": True,
+            "is_active": True
+        }).to_list(1000)
+        
+        if not cleaners:
+            print("No approved cleaners available")
+            return None
+        
+        # Score each cleaner
+        cleaner_scores = []
+        
+        for cleaner in cleaners:
+            cleaner_id = cleaner.get("id")
+            
+            # Check availability in cleaner_availability collection
+            availability = await db.cleaner_availability.find_one({
+                "cleaner_id": cleaner_id,
+                "date": booking_date,
+                "time_slot": time_slot,
+                "is_available": True,
+                "is_booked": False
+            })
+            
+            if not availability:
+                continue  # Skip if not available
+            
+            # Count existing bookings for this cleaner on this date
+            bookings_count = await db.bookings.count_documents({
+                "cleaner_id": cleaner_id,
+                "booking_date": booking_date,
+                "status": {"$in": ["confirmed", "in_progress"]}
+            })
+            
+            # Skip if cleaner already has 3 or more jobs
+            if bookings_count >= 3:
+                continue
+            
+            # Calculate score (higher is better)
+            rating = cleaner.get("rating", 5.0)
+            total_jobs = cleaner.get("total_jobs", 0)
+            
+            # Prefer higher rating, but also balance workload
+            # Score = rating * 10 - (total_jobs / 100)
+            score = (rating * 10) - (total_jobs / 100) - (bookings_count * 5)
+            
+            cleaner_scores.append({
+                "cleaner_id": cleaner_id,
+                "score": score,
+                "rating": rating,
+                "total_jobs": total_jobs,
+                "bookings_today": bookings_count
+            })
+        
+        if not cleaner_scores:
+            print(f"No available cleaners for {booking_date} at {time_slot}")
+            return None
+        
+        # Sort by score (highest first)
+        cleaner_scores.sort(key=lambda x: x["score"], reverse=True)
+        
+        best_cleaner = cleaner_scores[0]
+        print(f"Auto-assigned cleaner {best_cleaner['cleaner_id']} with score {best_cleaner['score']}")
+        
+        return best_cleaner["cleaner_id"]
+        
+    except Exception as e:
+        print(f"Error in auto_assign_best_cleaner: {e}")
+        return None
+
 # Initialize time slot availability (helper function)
+async def initialize_cleaner_availability(cleaner_id: str, days_ahead: int = 90):
+    """Initialize availability for a specific cleaner for next N days"""
+    time_slots = [
+        "08:00-10:00",
+        "10:00-12:00",
+        "12:00-14:00",
+        "14:00-16:00",
+        "16:00-18:00"
+    ]
+    
+    today = datetime.now()
+    
+    for day_offset in range(days_ahead):
+        date = today + timedelta(days=day_offset)
+        date_str = date.strftime("%Y-%m-%d")
+        
+        for time_slot in time_slots:
+            # Check if already exists
+            existing = await db.cleaner_availability.find_one({
+                "cleaner_id": cleaner_id,
+                "date": date_str,
+                "time_slot": time_slot
+            })
+            
+            if not existing:
+                availability_data = CleanerAvailability(
+                    cleaner_id=cleaner_id,
+                    date=date_str,
+                    time_slot=time_slot,
+                    is_available=True,
+                    is_booked=False
+                )
+                await db.cleaner_availability.insert_one(prepare_for_mongo(availability_data.dict()))
+    
+    print(f"Initialized availability for cleaner {cleaner_id} for next {days_ahead} days")
+
 async def initialize_time_slot_availability(days_ahead: int = 90):
     """Initialize time slot availability for next N days"""
     time_slots = [
@@ -4841,7 +5576,7 @@ async def approve_cancellation(order_id: str, admin_user: User = Depends(get_adm
     """Approve a cancellation request"""
     result = await db.bookings.update_one(
         {"id": order_id, "status": "pending_cancellation"},
-        {"$set": {"status": "cancelled", "updated_at": datetime.utcnow().isoformat()}}
+        {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     if result.modified_count == 0:
@@ -4854,7 +5589,7 @@ async def deny_cancellation(order_id: str, admin_user: User = Depends(get_admin_
     """Deny a cancellation request"""
     result = await db.bookings.update_one(
         {"id": order_id, "status": "pending_cancellation"},
-        {"$set": {"status": "confirmed", "updated_at": datetime.utcnow().isoformat()}}
+        {"$set": {"status": "confirmed", "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     if result.modified_count == 0:
@@ -4867,7 +5602,7 @@ async def approve_reschedule(order_id: str, admin_user: User = Depends(get_admin
     """Approve a reschedule request"""
     result = await db.bookings.update_one(
         {"id": order_id, "status": "pending_reschedule"},
-        {"$set": {"status": "confirmed", "updated_at": datetime.utcnow().isoformat()}}
+        {"$set": {"status": "confirmed", "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     if result.modified_count == 0:
@@ -4880,7 +5615,7 @@ async def deny_reschedule(order_id: str, admin_user: User = Depends(get_admin_us
     """Deny a reschedule request"""
     result = await db.bookings.update_one(
         {"id": order_id, "status": "pending_reschedule"},
-        {"$set": {"status": "confirmed", "updated_at": datetime.utcnow().isoformat()}}
+        {"$set": {"status": "confirmed", "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     if result.modified_count == 0:
@@ -5156,14 +5891,14 @@ async def confirm_payment_intent_endpoint(
         # Update payment intent status
         await db.payment_intents.update_one(
             {"id": payment_intent_id},
-            {"$set": {"status": confirmed_intent['status'], "updated_at": datetime.utcnow().isoformat()}}
+            {"$set": {"status": confirmed_intent['status'], "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
         
         # Update booking payment status if payment succeeded
         if confirmed_intent['status'] == 'succeeded':
             await db.bookings.update_one(
                 {"id": payment_intent['booking_id']},
-                {"$set": {"payment_status": "paid", "updated_at": datetime.utcnow().isoformat()}}
+                {"$set": {"payment_status": "paid", "updated_at": datetime.now(timezone.utc).isoformat()}}
             )
         
         return {"status": confirmed_intent['status'], "payment_intent": confirmed_intent}
@@ -5196,7 +5931,7 @@ async def get_payment_intent_endpoint(
         if stripe_intent['status'] != payment_intent['status']:
             await db.payment_intents.update_one(
                 {"id": payment_intent_id},
-                {"$set": {"status": stripe_intent['status'], "updated_at": datetime.utcnow().isoformat()}}
+                {"$set": {"status": stripe_intent['status'], "updated_at": datetime.now(timezone.utc).isoformat()}}
             )
             payment_intent['status'] = stripe_intent['status']
         
@@ -5233,7 +5968,7 @@ async def stripe_webhook(request: Request):
             # Update booking payment status
             await db.bookings.update_many(
                 {"payment_intent_id": payment_intent['id']},
-                {"$set": {"payment_status": "paid", "updated_at": datetime.utcnow().isoformat()}}
+                {"$set": {"payment_status": "paid", "updated_at": datetime.now(timezone.utc).isoformat()}}
             )
             
         elif event['type'] == 'payment_intent.payment_failed':
@@ -5242,7 +5977,7 @@ async def stripe_webhook(request: Request):
             # Update booking payment status
             await db.bookings.update_many(
                 {"payment_intent_id": payment_intent['id']},
-                {"$set": {"payment_status": "failed", "updated_at": datetime.utcnow().isoformat()}}
+                {"$set": {"payment_status": "failed", "updated_at": datetime.now(timezone.utc).isoformat()}}
             )
         
         return {"status": "success"}
@@ -5689,12 +6424,12 @@ async def update_job_status(job_id: str, status_data: dict):
         # Update booking status
         update_data = {
             "status": new_status,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
         # Add completion timestamp if marking as completed
         if new_status == "completed":
-            update_data["completed_at"] = datetime.utcnow().isoformat()
+            update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
             update_data["completion_notes"] = status_data.get("completion_notes", "")
         
         result = await db.bookings.update_one(
@@ -5754,9 +6489,9 @@ async def update_job_progress(job_id: str, progress_data: dict):
             "progress": {
                 "completion_percentage": completion_percentage,
                 "current_task": progress_data.get("current_task", ""),
-                "last_updated": datetime.utcnow().isoformat()
+                "last_updated": datetime.now(timezone.utc).isoformat()
             },
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
         # Add checklist if provided

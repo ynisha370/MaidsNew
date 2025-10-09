@@ -45,10 +45,35 @@ const CleanerLogin = () => {
         toast.success('Cleaner login successful!');
         navigate('/cleaner');
       } else {
-        toast.error(result.error);
+        // Check if error is about pending approval
+        if (result.error && result.error.includes('pending approval')) {
+          toast.error(
+            'Your account is pending approval. Please wait for admin to approve your application.',
+            { duration: 5000 }
+          );
+          // Show more detailed message
+          setTimeout(() => {
+            alert(
+              '⏳ Account Pending Approval\n\n' +
+              'Your account is currently under review by our admin team.\n\n' +
+              'You will receive an email notification once your application is approved.\n\n' +
+              'If you have questions, please contact support@maidsofcyfair.com'
+            );
+          }, 500);
+        } else {
+          toast.error(result.error);
+        }
       }
     } catch (error) {
-      toast.error('Login failed. Please try again.');
+      const errorMessage = error.response?.data?.detail || error.message;
+      if (errorMessage && errorMessage.includes('pending approval')) {
+        toast.error(
+          'Your account is pending approval. Please wait for admin to approve your application.',
+          { duration: 5000 }
+        );
+      } else {
+        toast.error('Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -56,7 +81,7 @@ const CleanerLogin = () => {
 
   const handleGoogleSignIn = () => {
     // Try environment variable first, fallback to hardcoded value
-    const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '758684152649-6o73m1nt3okhh6v32oi6ki5fq2khd51t.apps.googleusercontent.com';
+    const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '758684152649-uss73uc32io23s8l519lc2fcem4u6adc.apps.googleusercontent.com';
 
     console.log('Environment check:');
     console.log('- NODE_ENV:', process.env.NODE_ENV);
