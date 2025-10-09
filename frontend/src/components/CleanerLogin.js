@@ -116,9 +116,8 @@ const CleanerLogin = () => {
 
     console.log('Redirecting to:', googleAuthUrl);
 
-    // Ensure OAuth opens in system browser, not embedded WebView
-    // This prevents the Google OAuth policy compliance error
-    window.open(googleAuthUrl, '_blank', 'noopener,noreferrer');
+    // Redirect in the same window - required for Google OAuth policy compliance
+    window.location.href = googleAuthUrl;
   };
 
   return (

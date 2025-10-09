@@ -226,9 +226,8 @@ const Register = () => {
                     const state = encodeURIComponent('signup'); // Add state to distinguish sign-up
                     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=${responseType}&state=${state}&access_type=offline&prompt=consent`;
                     
-                    // Ensure OAuth opens in system browser, not embedded WebView
-                    // This prevents the Google OAuth policy compliance error
-                    window.open(googleAuthUrl, '_blank', 'noopener,noreferrer');
+                    // Redirect in the same window - required for Google OAuth policy compliance
+                    window.location.href = googleAuthUrl;
                   }}
                 >
                   <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">

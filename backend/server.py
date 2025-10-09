@@ -67,6 +67,9 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 
+# Frontend URL Configuration
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://foodsensescale.tech")
+
 # Servicable zip codes
 SERVICABLE_ZIP_CODES = ['77433', '77429', '77095', '77377', '77070', '77065']
 
@@ -1405,7 +1408,7 @@ async def google_oauth_callback_get(code: str = None, error: str = None, state: 
         
         # For GET requests, we need to redirect to frontend with the token
         # This is a simplified approach - in production you might want to use a more secure method
-        frontend_url = f"http://localhost:3000/auth/google/callback?token={access_token}&user={user_response['email']}"
+        frontend_url = f"{FRONTEND_URL}/auth/google/callback?token={access_token}&user={user_response['email']}"
         
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=frontend_url)
@@ -6697,8 +6700,8 @@ async def create_checkout_session(request: dict):
                 'quantity': 1,
             }],
             mode='payment',
-            success_url=f'{request.get("success_url", "http://localhost:3000")}/confirmation/{booking_id}',
-            cancel_url=f'{request.get("cancel_url", "http://localhost:3000")}/payment/{booking_id}',
+            success_url=f'{request.get("success_url", FRONTEND_URL)}/confirmation/{booking_id}',
+            cancel_url=f'{request.get("cancel_url", FRONTEND_URL)}/payment/{booking_id}',
             metadata={
                 'booking_id': booking_id,
                 'customer_id': booking.get('customer_id', ''),
