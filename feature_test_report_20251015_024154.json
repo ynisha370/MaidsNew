@@ -1,0 +1,186 @@
+{
+  "timestamp": "2025-10-14T21:11:54.307845+00:00",
+  "summary": {
+    "total_tests": 25,
+    "passed": 17,
+    "failed": 8,
+    "success_rate": 68.0
+  },
+  "test_details": [
+    {
+      "test": "Cleaner Login - Maria Garcia",
+      "status": "PASS",
+      "message": "Login successful, token received",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:19.270333+00:00"
+    },
+    {
+      "test": "Cleaner Login - James Wilson",
+      "status": "PASS",
+      "message": "Login successful, token received",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:20.222241+00:00"
+    },
+    {
+      "test": "Cleaner Login - Lisa Chen",
+      "status": "PASS",
+      "message": "Login successful, token received",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:21.061561+00:00"
+    },
+    {
+      "test": "Cleaner Login - Sarah Johnson",
+      "status": "PASS",
+      "message": "Login successful, token received",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:22.025985+00:00"
+    },
+    {
+      "test": "Cleaner Login - Maria Garcia",
+      "status": "PASS",
+      "message": "Login successful, token received",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:22.864013+00:00"
+    },
+    {
+      "test": "Cleaner Job Management",
+      "status": "FAIL",
+      "message": "Exception: 'list' object has no attribute 'get'",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:23.460545+00:00"
+    },
+    {
+      "test": "Cleaner Clock In/Out",
+      "status": "FAIL",
+      "message": "Exception: 'list' object has no attribute 'get'",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:24.124270+00:00"
+    },
+    {
+      "test": "Calendar Availability",
+      "status": "PASS",
+      "message": "Availability retrieved for 2025-10-16",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:24.425201+00:00"
+    },
+    {
+      "test": "Time Slots Retrieval",
+      "status": "PASS",
+      "message": "Time slots retrieved for 2025-10-16",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:24.725587+00:00"
+    },
+    {
+      "test": "Guest Checkout",
+      "status": "PASS",
+      "message": "Guest booking created: 1aea4397-72d5-4319-a64d-a89559cdabcc",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:37.090347+00:00"
+    },
+    {
+      "test": "Admin Login",
+      "status": "PASS",
+      "message": "Admin login successful",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:37.673400+00:00"
+    },
+    {
+      "test": "Admin Bookings View",
+      "status": "FAIL",
+      "message": "HTTP 500: {\"detail\":\"Failed to retrieve bookings: 2 validation errors for Booking\\nhouse_size\\n  Input should be '1000-2000', '2000-2500', '2500-3000', '3000-3500', '3500-4000', '4000-4500', '4500-5000', '5000-6000', '6000-8000', '1000-1500', '1500-2000', '5000+', 'small', 'medium', 'large', '3_bedroom', '4_bedroom', '5_bedroom', 'studio', '1_bedroom', '2_bedroom' or '6_bedroom' [type=enum, input_value='1200-1500', input_type=str]\\n    For further information visit https://errors.pydantic.dev/2.11/v/enum\\npayment_status\\n  Input should be 'pending', 'paid', 'failed' or 'refunded' [type=enum, input_value='completed', input_type=str]\\n    For further information visit https://errors.pydantic.dev/2.11/v/enum\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:38.649449+00:00"
+    },
+    {
+      "test": "Admin Dashboard Features",
+      "status": "FAIL",
+      "message": "Exception: 'list' object has no attribute 'get'",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:39.332725+00:00"
+    },
+    {
+      "test": "Admin Unassigned Jobs",
+      "status": "PASS",
+      "message": "Retrieved 0 unassigned jobs",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:39.947847+00:00"
+    },
+    {
+      "test": "Admin Job Assignment",
+      "status": "FAIL",
+      "message": "Exception: 'list' object has no attribute 'get'",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:40.675095+00:00"
+    },
+    {
+      "test": "Stripe Configuration",
+      "status": "PASS",
+      "message": "Stripe config retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:40.695603+00:00"
+    },
+    {
+      "test": "Stripe Payment Methods",
+      "status": "FAIL",
+      "message": "HTTP 403: {\"detail\":\"Not authenticated\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:40.699679+00:00"
+    },
+    {
+      "test": "Email Service Status",
+      "status": "FAIL",
+      "message": "HTTP 403: {\"detail\":\"Not authenticated\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:40.702869+00:00"
+    },
+    {
+      "test": "Test Email Send",
+      "status": "FAIL",
+      "message": "HTTP 403: {\"detail\":\"Not authenticated\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:40.704863+00:00"
+    },
+    {
+      "test": "Availability Check",
+      "status": "PASS",
+      "message": "Availability check successful: 13 of 13 cleaners available",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:49.297450+00:00"
+    },
+    {
+      "test": "Flutter Profile Data",
+      "status": "PASS",
+      "message": "Profile Data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:50.528616+00:00"
+    },
+    {
+      "test": "Flutter Jobs Data",
+      "status": "PASS",
+      "message": "Jobs Data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:51.161650+00:00"
+    },
+    {
+      "test": "Flutter Earnings Data",
+      "status": "PASS",
+      "message": "Earnings Data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:52.105693+00:00"
+    },
+    {
+      "test": "Flutter Wallet Data",
+      "status": "PASS",
+      "message": "Wallet Data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:53.278675+00:00"
+    },
+    {
+      "test": "Flutter Payments Data",
+      "status": "PASS",
+      "message": "Payments Data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T21:11:54.307343+00:00"
+    }
+  ]
+}

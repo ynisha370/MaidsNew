@@ -1,0 +1,144 @@
+{
+  "timestamp": "2025-10-14T03:54:34.920089+00:00",
+  "summary": {
+    "total_tests": 19,
+    "passed": 5,
+    "failed": 14,
+    "success_rate": 26.31578947368421
+  },
+  "test_details": [
+    {
+      "test": "Cleaner Login - Sarah Johnson",
+      "status": "FAIL",
+      "message": "HTTP 500: {\"detail\":\"Login failed: 'str' object has no attribute 'isoformat'\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:09.472422+00:00"
+    },
+    {
+      "test": "Cleaner Login - Maria Garcia",
+      "status": "FAIL",
+      "message": "HTTP 500: {\"detail\":\"Login failed: 'str' object has no attribute 'isoformat'\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:10.298856+00:00"
+    },
+    {
+      "test": "Cleaner Login - Jennifer Smith",
+      "status": "FAIL",
+      "message": "HTTP 500: {\"detail\":\"Login failed: 'str' object has no attribute 'isoformat'\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:11.129725+00:00"
+    },
+    {
+      "test": "Cleaner Login - Lisa Wilson",
+      "status": "FAIL",
+      "message": "HTTP 500: {\"detail\":\"Login failed: 'str' object has no attribute 'isoformat'\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:12.085723+00:00"
+    },
+    {
+      "test": "Cleaner Login - Ana Rodriguez",
+      "status": "FAIL",
+      "message": "HTTP 500: {\"detail\":\"Login failed: 'str' object has no attribute 'isoformat'\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:12.963023+00:00"
+    },
+    {
+      "test": "Cleaner Job Management",
+      "status": "FAIL",
+      "message": "No cleaner tokens available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:12.963306+00:00"
+    },
+    {
+      "test": "Cleaner Clock In/Out",
+      "status": "FAIL",
+      "message": "No cleaner tokens available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:12.963340+00:00"
+    },
+    {
+      "test": "Calendar Availability",
+      "status": "PASS",
+      "message": "Availability retrieved for 2025-10-15",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:13.326958+00:00"
+    },
+    {
+      "test": "Time Slots Retrieval",
+      "status": "PASS",
+      "message": "Time slots retrieved for 2025-10-15",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:13.667184+00:00"
+    },
+    {
+      "test": "Guest Checkout",
+      "status": "PASS",
+      "message": "Guest booking created: f2da1eae-cd05-4bf6-badf-ae10bfcd1c42",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:26.001754+00:00"
+    },
+    {
+      "test": "Admin Login",
+      "status": "FAIL",
+      "message": "HTTP 401: {\"detail\":\"Invalid email or password\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:26.566247+00:00"
+    },
+    {
+      "test": "Admin Dashboard",
+      "status": "FAIL",
+      "message": "No admin token available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:26.566311+00:00"
+    },
+    {
+      "test": "Admin Job Assignment",
+      "status": "FAIL",
+      "message": "No admin token available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:26.566327+00:00"
+    },
+    {
+      "test": "Stripe Configuration",
+      "status": "PASS",
+      "message": "Stripe config retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:26.568330+00:00"
+    },
+    {
+      "test": "Stripe Payment Methods",
+      "status": "FAIL",
+      "message": "HTTP 404: {\"detail\":\"Not found\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:26.570074+00:00"
+    },
+    {
+      "test": "Email Service Status",
+      "status": "FAIL",
+      "message": "HTTP 404: {\"detail\":\"Not found\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:26.571680+00:00"
+    },
+    {
+      "test": "Test Email Send",
+      "status": "FAIL",
+      "message": "HTTP 405: {\"detail\":\"Method Not Allowed\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:26.573017+00:00"
+    },
+    {
+      "test": "Availability Check",
+      "status": "PASS",
+      "message": "Availability check successful: 12 of 13 cleaners available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:34.919569+00:00"
+    },
+    {
+      "test": "Flutter App Integration",
+      "status": "FAIL",
+      "message": "No cleaner tokens available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:54:34.919729+00:00"
+    }
+  ]
+}

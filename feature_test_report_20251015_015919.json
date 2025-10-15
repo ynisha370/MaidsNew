@@ -1,0 +1,116 @@
+{
+  "timestamp": "2025-10-14T20:29:19.989508+00:00",
+  "summary": {
+    "total_tests": 15,
+    "passed": 0,
+    "failed": 15,
+    "success_rate": 0.0
+  },
+  "test_details": [
+    {
+      "test": "Cleaner Login - Sarah Johnson",
+      "status": "FAIL",
+      "message": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/cleaner/login?email=sarah.johnson%40maids.com&password=cleaner123 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10aee34d0>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.979550+00:00"
+    },
+    {
+      "test": "Cleaner Login - Maria Garcia",
+      "status": "FAIL",
+      "message": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/cleaner/login?email=maria.garcia%40maids.com&password=cleaner123 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10b0fd450>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.980839+00:00"
+    },
+    {
+      "test": "Cleaner Login - Jennifer Smith",
+      "status": "FAIL",
+      "message": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/cleaner/login?email=jennifer.smith%40maids.com&password=cleaner123 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10b0fdd10>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.981774+00:00"
+    },
+    {
+      "test": "Cleaner Login - Lisa Wilson",
+      "status": "FAIL",
+      "message": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/cleaner/login?email=lisa.wilson%40maids.com&password=cleaner123 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10b0ca190>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.983136+00:00"
+    },
+    {
+      "test": "Cleaner Login - Ana Rodriguez",
+      "status": "FAIL",
+      "message": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/cleaner/login?email=ana.rodriguez%40maids.com&password=cleaner123 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10b0ca8b0>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.984844+00:00"
+    },
+    {
+      "test": "Cleaner Job Management",
+      "status": "FAIL",
+      "message": "No cleaner tokens available",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.984857+00:00"
+    },
+    {
+      "test": "Cleaner Clock In/Out",
+      "status": "FAIL",
+      "message": "No cleaner tokens available",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.984864+00:00"
+    },
+    {
+      "test": "Customer Booking System",
+      "status": "FAIL",
+      "message": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/calendar/available-dates?start_date=2025-10-16&end_date=2025-10-16 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10b0ce210>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.986103+00:00"
+    },
+    {
+      "test": "Admin Authentication",
+      "status": "FAIL",
+      "message": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/auth/login (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10b1117b0>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.986981+00:00"
+    },
+    {
+      "test": "Admin Dashboard",
+      "status": "FAIL",
+      "message": "No admin token available",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.986992+00:00"
+    },
+    {
+      "test": "Admin Job Assignment",
+      "status": "FAIL",
+      "message": "No admin token available",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.986998+00:00"
+    },
+    {
+      "test": "Payment Integration",
+      "status": "FAIL",
+      "message": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/stripe/config (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10b111f20>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.988196+00:00"
+    },
+    {
+      "test": "Email Reminders",
+      "status": "FAIL",
+      "message": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/admin/email/status (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10b112250>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.988870+00:00"
+    },
+    {
+      "test": "Scheduling Engine",
+      "status": "FAIL",
+      "message": "Exception: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/availability?date=2025-10-16&time_slot=09:00-12:00 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10b111150>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.989453+00:00"
+    },
+    {
+      "test": "Flutter App Integration",
+      "status": "FAIL",
+      "message": "No cleaner tokens available",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:29:19.989461+00:00"
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "timestamp": "2025-10-14T03:50:48.532719+00:00",
+  "summary": {
+    "total_tests": 19,
+    "passed": 4,
+    "failed": 15,
+    "success_rate": 21.052631578947366
+  },
+  "test_details": [
+    {
+      "test": "Cleaner Login - Sarah Johnson",
+      "status": "FAIL",
+      "message": "HTTP 422: {\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"email\"],\"msg\":\"Field required\",\"input\":null},{\"type\":\"missing\",\"loc\":[\"query\",\"password\"],\"msg\":\"Field required\",\"input\":null}]}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:39.680807+00:00"
+    },
+    {
+      "test": "Cleaner Login - Maria Garcia",
+      "status": "FAIL",
+      "message": "HTTP 422: {\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"email\"],\"msg\":\"Field required\",\"input\":null},{\"type\":\"missing\",\"loc\":[\"query\",\"password\"],\"msg\":\"Field required\",\"input\":null}]}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:39.683423+00:00"
+    },
+    {
+      "test": "Cleaner Login - Jennifer Smith",
+      "status": "FAIL",
+      "message": "HTTP 422: {\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"email\"],\"msg\":\"Field required\",\"input\":null},{\"type\":\"missing\",\"loc\":[\"query\",\"password\"],\"msg\":\"Field required\",\"input\":null}]}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:39.686101+00:00"
+    },
+    {
+      "test": "Cleaner Login - Lisa Wilson",
+      "status": "FAIL",
+      "message": "HTTP 422: {\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"email\"],\"msg\":\"Field required\",\"input\":null},{\"type\":\"missing\",\"loc\":[\"query\",\"password\"],\"msg\":\"Field required\",\"input\":null}]}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:39.687509+00:00"
+    },
+    {
+      "test": "Cleaner Login - Ana Rodriguez",
+      "status": "FAIL",
+      "message": "HTTP 422: {\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"email\"],\"msg\":\"Field required\",\"input\":null},{\"type\":\"missing\",\"loc\":[\"query\",\"password\"],\"msg\":\"Field required\",\"input\":null}]}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:39.688779+00:00"
+    },
+    {
+      "test": "Cleaner Job Management",
+      "status": "FAIL",
+      "message": "No cleaner tokens available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:39.688808+00:00"
+    },
+    {
+      "test": "Cleaner Clock In/Out",
+      "status": "FAIL",
+      "message": "No cleaner tokens available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:39.688814+00:00"
+    },
+    {
+      "test": "Calendar Availability",
+      "status": "PASS",
+      "message": "Availability retrieved for 2025-10-15",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:40.039170+00:00"
+    },
+    {
+      "test": "Time Slots Retrieval",
+      "status": "PASS",
+      "message": "Time slots retrieved for 2025-10-15",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:40.344199+00:00"
+    },
+    {
+      "test": "Guest Checkout",
+      "status": "FAIL",
+      "message": "HTTP 400: {\"detail\":\"We currently only service these ZIP codes: 77433, 77429, 77095, 77377, 77070, 77065\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:40.353125+00:00"
+    },
+    {
+      "test": "Admin Login",
+      "status": "FAIL",
+      "message": "HTTP 405: {\"detail\":\"Method Not Allowed\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:40.357089+00:00"
+    },
+    {
+      "test": "Admin Dashboard",
+      "status": "FAIL",
+      "message": "No admin token available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:40.357173+00:00"
+    },
+    {
+      "test": "Admin Job Assignment",
+      "status": "FAIL",
+      "message": "No admin token available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:40.357190+00:00"
+    },
+    {
+      "test": "Stripe Configuration",
+      "status": "PASS",
+      "message": "Stripe config retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:40.360778+00:00"
+    },
+    {
+      "test": "Stripe Payment Methods",
+      "status": "FAIL",
+      "message": "HTTP 404: {\"detail\":\"Not found\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:40.363115+00:00"
+    },
+    {
+      "test": "Email Service Status",
+      "status": "FAIL",
+      "message": "HTTP 404: {\"detail\":\"Not found\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:40.365102+00:00"
+    },
+    {
+      "test": "Test Email Send",
+      "status": "FAIL",
+      "message": "HTTP 405: {\"detail\":\"Method Not Allowed\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:40.366905+00:00"
+    },
+    {
+      "test": "Availability Check",
+      "status": "PASS",
+      "message": "Availability check successful: 12 of 13 cleaners available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:48.532613+00:00"
+    },
+    {
+      "test": "Flutter App Integration",
+      "status": "FAIL",
+      "message": "No cleaner tokens available",
+      "response_data": null,
+      "timestamp": "2025-10-14T03:50:48.532666+00:00"
+    }
+  ]
+}

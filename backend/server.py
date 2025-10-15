@@ -1857,6 +1857,23 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
     if not booking_date or not time_slot:
         raise HTTPException(status_code=400, detail="Booking date and time slot are required")
 
+    # Check daily capacity first
+    booking_count = await db.bookings.count_documents({
+        "booking_date": booking_date,
+        "status": {"$in": ["confirmed", "in_progress"]}
+    })
+    
+    if booking_count >= MAX_DAILY_BOOKINGS:
+        # Return waitlist redirect instead of error
+        return {
+            "waitlist_required": True,
+            "message": "We're currently at capacity for this date. We value you and hope to service your home soon!",
+            "waitlist_message": "We're currently full for that slot — would you like to join our Waitlist?",
+            "max_capacity": MAX_DAILY_BOOKINGS,
+            "current_bookings": booking_count,
+            "date": booking_date
+        }
+    
     # Check if there are available cleaners for this date and time
     availability_response = await get_availability(booking_date, time_slot)
     if not availability_response['available']:
@@ -2595,12 +2612,99 @@ async def get_admin_stats(admin_user: User = Depends(get_admin_user)):
         "open_tickets": open_tickets
     }
 
-@api_router.get("/admin/bookings", response_model=List[Booking])
+@api_router.get("/admin/test")
+async def admin_test():
+    print("ADMIN TEST ENDPOINT CALLED - CODE UPDATED!")
+    return {"message": "Admin test endpoint working - code updated!"}
+
+@api_router.get("/admin/bookings-new")
+async def get_all_bookings_new(admin_user: User = Depends(get_admin_user)):
+    """New admin bookings endpoint without Pydantic validation"""
+    try:
+        bookings = await db.bookings.find().sort("created_at", -1).to_list(1000)
+        print(f"Admin bookings-new endpoint: Found {len(bookings)} bookings")
+        
+        # Fix enum values before returning
+        fixed_bookings = []
+        for i, booking in enumerate(bookings):
+            # Create a copy to avoid modifying the original
+            fixed_booking = booking.copy()
+            
+            # Fix house_size enum values
+            house_size = fixed_booking.get("house_size", "")
+            if house_size in ["1200-1500", "1000-1500"]:
+                fixed_booking["house_size"] = "2_bedroom"
+            elif house_size == "1500-2000":
+                fixed_booking["house_size"] = "3_bedroom"
+            elif house_size == "2000-2500":
+                fixed_booking["house_size"] = "4_bedroom"
+            elif house_size == "2500-3000":
+                fixed_booking["house_size"] = "5_bedroom"
+            elif house_size in ["3000-3500", "3500-4000", "4000-4500", "4500-5000", "5000-6000", "5000+"]:
+                fixed_booking["house_size"] = "6_bedroom"
+            
+            # Fix payment_status enum values
+            if fixed_booking.get("payment_status") == "completed":
+                fixed_booking["payment_status"] = "paid"
+            
+            # Fix frequency enum values
+            frequency = fixed_booking.get("frequency", "")
+            if frequency == "biweekly":
+                fixed_booking["frequency"] = "bi_weekly"
+            
+            # Convert ObjectId to string for JSON serialization
+            if '_id' in fixed_booking:
+                fixed_booking['_id'] = str(fixed_booking['_id'])
+            
+            fixed_bookings.append(fixed_booking)
+        
+        return fixed_bookings
+    except Exception as e:
+        print(f"Error in admin bookings-new endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve bookings: {str(e)}")
+
+@api_router.get("/admin/bookings")
 async def get_all_bookings(admin_user: User = Depends(get_admin_user)):
+    """Get all bookings for admin dashboard - returns raw data without Pydantic validation"""
     try:
         bookings = await db.bookings.find().sort("created_at", -1).to_list(1000)
         print(f"Admin bookings endpoint: Found {len(bookings)} bookings")
-        return [Booking(**booking) for booking in bookings]
+        
+        # Fix enum values and convert ObjectId to string
+        fixed_bookings = []
+        for booking in bookings:
+            # Create a copy to avoid modifying the original
+            fixed_booking = booking.copy()
+            
+            # Fix house_size enum values
+            house_size = fixed_booking.get("house_size", "")
+            if house_size in ["1200-1500", "1000-1500"]:
+                fixed_booking["house_size"] = "2_bedroom"
+            elif house_size == "1500-2000":
+                fixed_booking["house_size"] = "3_bedroom"
+            elif house_size == "2000-2500":
+                fixed_booking["house_size"] = "4_bedroom"
+            elif house_size == "2500-3000":
+                fixed_booking["house_size"] = "5_bedroom"
+            elif house_size in ["3000-3500", "3500-4000", "4000-4500", "4500-5000", "5000-6000", "5000+"]:
+                fixed_booking["house_size"] = "6_bedroom"
+            
+            # Fix payment_status enum values
+            if fixed_booking.get("payment_status") == "completed":
+                fixed_booking["payment_status"] = "paid"
+            
+            # Fix frequency enum values
+            frequency = fixed_booking.get("frequency", "")
+            if frequency == "biweekly":
+                fixed_booking["frequency"] = "bi_weekly"
+            
+            # Convert ObjectId to string for JSON serialization
+            if '_id' in fixed_booking:
+                fixed_booking['_id'] = str(fixed_booking['_id'])
+            
+            fixed_bookings.append(fixed_booking)
+        
+        return fixed_bookings
     except Exception as e:
         print(f"Error in admin bookings endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve bookings: {str(e)}")
@@ -3956,7 +4060,7 @@ async def cleaner_login(email: str, password: str):
                 "rating": cleaner.get("rating", 5.0),
                 "completedJobs": cleaner.get("total_jobs", 0),
                 "isActive": cleaner.get("is_active", True),
-                "createdAt": cleaner.get("created_at", datetime.now(timezone.utc)).isoformat()
+                "createdAt": cleaner.get("created_at", datetime.now(timezone.utc).isoformat())
             }
         }
     except HTTPException:
@@ -4045,14 +4149,14 @@ async def get_cleaner_profile(current_user: User = Depends(get_current_user)):
             "rating": cleaner.get("rating", 5.0),
             "completedJobs": cleaner.get("total_jobs", 0),
             "isActive": cleaner.get("is_active", True),
-            "createdAt": cleaner.get("created_at", datetime.now(timezone.utc)).isoformat()
+            "createdAt": cleaner.get("created_at", datetime.now(timezone.utc).isoformat())
         }
     }
 
 @api_router.get("/cleaner/jobs")
 async def get_cleaner_jobs(current_user: User = Depends(get_current_user)):
     """Get all jobs assigned to the cleaner"""
-    if current_user.role != UserRole.CLEANER:
+    if current_user.role != "cleaner":
         raise HTTPException(status_code=403, detail="Access denied")
     
     try:
@@ -4067,11 +4171,17 @@ async def get_cleaner_jobs(current_user: User = Depends(get_current_user)):
         
         jobs = []
         for booking in bookings:
+            # Convert ObjectId to string for JSON serialization
+            if '_id' in booking:
+                booking['_id'] = str(booking['_id'])
             # Get customer info
             customer = await db.users.find_one({"id": booking.get("customer_id")})
             customer_name = "Guest Customer"
             customer_phone = ""
             if customer:
+                # Convert ObjectId to string for JSON serialization
+                if '_id' in customer:
+                    customer['_id'] = str(customer['_id'])
                 customer_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}"
                 customer_phone = customer.get("phone", "")
             
@@ -5651,6 +5761,31 @@ async def get_stripe_config():
     """Get Stripe publishable key for frontend"""
     return {"publishable_key": STRIPE_PUBLISHABLE_KEY}
 
+@api_router.get("/stripe/payment-methods")
+async def get_payment_methods(current_user: User = Depends(get_current_user)):
+    """Get payment methods for the current user"""
+    try:
+        # This would typically integrate with Stripe to get customer payment methods
+        # For now, return a mock response
+        return {
+            "payment_methods": [
+                {
+                    "id": "pm_demo_1",
+                    "type": "card",
+                    "card": {
+                        "brand": "visa",
+                        "last4": "4242",
+                        "exp_month": 12,
+                        "exp_year": 2025
+                    },
+                    "is_default": True
+                }
+            ],
+            "default_payment_method": "pm_demo_1"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching payment methods: {str(e)}")
+
 @api_router.post("/payment-methods", response_model=PaymentMethod)
 async def create_payment_method_endpoint(
     payment_data: PaymentMethodCreate,
@@ -6009,6 +6144,61 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Webhook error: {str(e)}")
 
+# Email Service Status and Test Endpoints
+@api_router.get("/admin/email/status")
+async def get_email_service_status(admin_user: User = Depends(get_admin_user)):
+    """Get email service status and configuration"""
+    try:
+        # Check if email service is configured
+        from_email = os.getenv('FROM_EMAIL')
+        aws_region = os.getenv('AWS_REGION')
+        
+        status = {
+            "service": "Amazon SES",
+            "configured": bool(from_email and aws_region),
+            "from_email": from_email,
+            "aws_region": aws_region,
+            "status": "operational" if (from_email and aws_region) else "not_configured"
+        }
+        
+        return status
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking email status: {str(e)}")
+
+@api_router.post("/admin/email/send-test")
+async def send_test_email(
+    to: str,
+    subject: str,
+    message: str,
+    admin_user: User = Depends(get_admin_user)
+):
+    """Send a test email"""
+    try:
+        # Create test email content
+        html_content = f"""
+        <html>
+        <body>
+            <h2>Test Email from Maids of Cyfair</h2>
+            <p>{message}</p>
+            <p>This is a test email to verify email functionality.</p>
+            <p>Sent at: {datetime.now(timezone.utc).isoformat()}</p>
+        </body>
+        </html>
+        """
+        
+        text_content = f"Test Email from Maids of Cyfair\n\n{message}\n\nThis is a test email to verify email functionality.\n\nSent at: {datetime.now(timezone.utc).isoformat()}"
+        
+        # Send email
+        success = email_service.send_email(to, subject, html_content, text_content)
+        
+        if success:
+            return {"message": "Test email sent successfully", "to": to}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to send test email")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error sending test email: {str(e)}")
+
 # Email Reminder Endpoints
 @api_router.post("/admin/email-reminders/send-single")
 async def send_single_email_reminder(
@@ -6166,9 +6356,216 @@ from services.reminder_service import ReminderService, ReminderTemplate, Reminde
 from services.twilio_sms_service import sms_service
 from services.reminder_scheduler import ReminderScheduler
 
+# Booking Agreement Models
+class BookingAgreement(BaseModel):
+    id: str
+    customer_id: str
+    booking_id: str
+    agreement_accepted: bool
+    accepted_at: datetime
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+
+class BookingAgreementCreate(BaseModel):
+    customer_id: str
+    booking_id: str
+    agreement_accepted: bool
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+
+# Waitlist Models
+class WaitlistEntry(BaseModel):
+    id: str
+    email: str
+    phone: str
+    first_name: str
+    last_name: str
+    preferred_frequency: str  # weekly, biweekly, monthly, one_time
+    preferred_time_slot: str
+    house_size: str
+    address: dict
+    created_at: datetime
+    status: str = "waiting"  # waiting, contacted, converted, expired
+    notes: Optional[str] = None
+
+class WaitlistEntryCreate(BaseModel):
+    email: str
+    phone: str
+    first_name: str
+    last_name: str
+    preferred_frequency: str
+    preferred_time_slot: str
+    house_size: str
+    address: dict
+    notes: Optional[str] = None
+
 # Initialize reminder service
 reminder_service = ReminderService(db)
 reminder_scheduler = ReminderScheduler(db, reminder_service)
+
+# Business Configuration
+MAX_DAILY_BOOKINGS = 10  # Boutique business cap
+
+# Booking Agreement Endpoints
+@api_router.post("/booking-agreement", response_model=BookingAgreement)
+async def create_booking_agreement(
+    agreement_data: BookingAgreementCreate,
+    request: Request
+):
+    """Create a booking agreement record"""
+    try:
+        agreement_id = str(uuid.uuid4())
+        
+        # Get client IP and user agent
+        client_ip = request.client.host
+        user_agent = request.headers.get("user-agent", "")
+        
+        agreement = {
+            "id": agreement_id,
+            "customer_id": agreement_data.customer_id,
+            "booking_id": agreement_data.booking_id,
+            "agreement_accepted": agreement_data.agreement_accepted,
+            "accepted_at": datetime.now(timezone.utc),
+            "ip_address": client_ip,
+            "user_agent": user_agent
+        }
+        
+        await db.booking_agreements.insert_one(agreement)
+        return BookingAgreement(**agreement)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating booking agreement: {str(e)}")
+
+@api_router.get("/booking-agreement/{booking_id}")
+async def get_booking_agreement(booking_id: str):
+    """Get booking agreement by booking ID"""
+    try:
+        agreement = await db.booking_agreements.find_one({"booking_id": booking_id})
+        if not agreement:
+            raise HTTPException(status_code=404, detail="Booking agreement not found")
+        
+        return BookingAgreement(**agreement)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving booking agreement: {str(e)}")
+
+# Waitlist Endpoints
+@api_router.post("/waitlist", response_model=WaitlistEntry)
+async def add_to_waitlist(waitlist_data: WaitlistEntryCreate):
+    """Add customer to waitlist"""
+    try:
+        # Check if email already exists in waitlist
+        existing_entry = await db.waitlist.find_one({"email": waitlist_data.email})
+        if existing_entry:
+            raise HTTPException(status_code=400, detail="Email already exists in waitlist")
+        
+        waitlist_id = str(uuid.uuid4())
+        
+        waitlist_entry = {
+            "id": waitlist_id,
+            "email": waitlist_data.email,
+            "phone": waitlist_data.phone,
+            "first_name": waitlist_data.first_name,
+            "last_name": waitlist_data.last_name,
+            "preferred_frequency": waitlist_data.preferred_frequency,
+            "preferred_time_slot": waitlist_data.preferred_time_slot,
+            "house_size": waitlist_data.house_size,
+            "address": waitlist_data.address,
+            "created_at": datetime.now(timezone.utc),
+            "status": "waiting",
+            "notes": waitlist_data.notes
+        }
+        
+        await db.waitlist.insert_one(waitlist_entry)
+        return WaitlistEntry(**waitlist_entry)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding to waitlist: {str(e)}")
+
+@api_router.get("/waitlist", response_model=List[WaitlistEntry])
+async def get_waitlist(admin_user: User = Depends(get_admin_user)):
+    """Get all waitlist entries (admin only)"""
+    try:
+        entries = await db.waitlist.find().sort("created_at", -1).to_list(1000)
+        return [WaitlistEntry(**entry) for entry in entries]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving waitlist: {str(e)}")
+
+@api_router.patch("/waitlist/{entry_id}")
+async def update_waitlist_entry(
+    entry_id: str,
+    update_data: dict,
+    admin_user: User = Depends(get_admin_user)
+):
+    """Update waitlist entry status (admin only)"""
+    try:
+        result = await db.waitlist.update_one(
+            {"id": entry_id},
+            {"$set": update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Waitlist entry not found")
+        
+        return {"message": "Waitlist entry updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating waitlist entry: {str(e)}")
+
+# Capacity Management Endpoints
+@api_router.get("/capacity/check")
+async def check_daily_capacity(date: str):
+    """Check if we have capacity for a specific date"""
+    try:
+        # Count bookings for the date
+        booking_count = await db.bookings.count_documents({
+            "booking_date": date,
+            "status": {"$in": ["confirmed", "in_progress"]}
+        })
+        
+        has_capacity = booking_count < MAX_DAILY_BOOKINGS
+        available_slots = max(0, MAX_DAILY_BOOKINGS - booking_count)
+        
+        return {
+            "date": date,
+            "has_capacity": has_capacity,
+            "current_bookings": booking_count,
+            "max_capacity": MAX_DAILY_BOOKINGS,
+            "available_slots": available_slots
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking capacity: {str(e)}")
+
+@api_router.get("/capacity/status")
+async def get_capacity_status():
+    """Get current capacity status for the next 30 days"""
+    try:
+        today = datetime.now().date()
+        capacity_data = []
+        
+        for i in range(30):
+            check_date = today + timedelta(days=i)
+            date_str = check_date.strftime('%Y-%m-%d')
+            
+            booking_count = await db.bookings.count_documents({
+                "booking_date": date_str,
+                "status": {"$in": ["confirmed", "in_progress"]}
+            })
+            
+            has_capacity = booking_count < MAX_DAILY_BOOKINGS
+            available_slots = max(0, MAX_DAILY_BOOKINGS - booking_count)
+            
+            capacity_data.append({
+                "date": date_str,
+                "has_capacity": has_capacity,
+                "current_bookings": booking_count,
+                "max_capacity": MAX_DAILY_BOOKINGS,
+                "available_slots": available_slots
+            })
+        
+        return capacity_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting capacity status: {str(e)}")
 
 # Reminder Templates Endpoints
 @api_router.get("/reminder-templates")
@@ -6397,40 +6794,7 @@ if frontend_build_path.exists():
         else:
             raise HTTPException(status_code=404, detail="Frontend build not found")
 
-# Cleaner Job Completion Endpoints
-@api_router.get("/cleaner/jobs")
-async def get_cleaner_jobs(cleaner_id: str):
-    """Get all jobs assigned to a specific cleaner"""
-    try:
-        jobs = await db.bookings.find({
-            "cleaner_id": cleaner_id,
-            "status": {"$in": ["confirmed", "in_progress", "completed"]}
-        }).to_list(1000)
-        
-        # Format job data for cleaner app
-        formatted_jobs = []
-        for job in jobs:
-            formatted_jobs.append({
-                "id": job.get("id"),
-                "customer_id": job.get("customer_id"),
-                "booking_date": job.get("booking_date"),
-                "time_slot": job.get("time_slot"),
-                "house_size": job.get("house_size"),
-                "frequency": job.get("frequency"),
-                "total_amount": job.get("total_amount"),
-                "status": job.get("status"),
-                "special_instructions": job.get("special_instructions"),
-                "address": job.get("address", {}),
-                "services": job.get("services", []),
-                "a_la_carte_services": job.get("a_la_carte_services", []),
-                "created_at": job.get("created_at"),
-                "updated_at": job.get("updated_at")
-            })
-        
-        return formatted_jobs
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get cleaner jobs: {str(e)}")
+# Cleaner Job Completion Endpoints - REMOVED DUPLICATE
 
 @api_router.patch("/cleaner/jobs/{job_id}/status")
 async def update_job_status(job_id: str, status_data: dict):

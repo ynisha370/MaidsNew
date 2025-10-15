@@ -1,0 +1,214 @@
+{
+  "timestamp": "2025-10-14T20:36:27.105444+00:00",
+  "summary": {
+    "total_tests": 29,
+    "passed": 20,
+    "failed": 9,
+    "success_rate": 68.96551724137932
+  },
+  "test_details": [
+    {
+      "test": "Cleaner Login - Sarah Johnson",
+      "status": "PASS",
+      "message": "Login successful, token received",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:48.493577+00:00"
+    },
+    {
+      "test": "Cleaner Login - Maria Garcia",
+      "status": "PASS",
+      "message": "Login successful, token received",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:49.330243+00:00"
+    },
+    {
+      "test": "Cleaner Login - Jennifer Smith",
+      "status": "PASS",
+      "message": "Login successful, token received",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:50.146381+00:00"
+    },
+    {
+      "test": "Cleaner Login - Lisa Wilson",
+      "status": "PASS",
+      "message": "Login successful, token received",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:51.106262+00:00"
+    },
+    {
+      "test": "Cleaner Login - Ana Rodriguez",
+      "status": "PASS",
+      "message": "Login successful, token received",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:51.924782+00:00"
+    },
+    {
+      "test": "Cleaner Jobs View",
+      "status": "FAIL",
+      "message": "HTTP 500: Internal Server Error",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:52.930062+00:00"
+    },
+    {
+      "test": "Cleaner Profile",
+      "status": "PASS",
+      "message": "Profile retrieved: Unknown",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:53.509707+00:00"
+    },
+    {
+      "test": "Cleaner Earnings",
+      "status": "PASS",
+      "message": "Earnings data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:54.572222+00:00"
+    },
+    {
+      "test": "Cleaner Wallet",
+      "status": "PASS",
+      "message": "Wallet data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:55.548186+00:00"
+    },
+    {
+      "test": "Cleaner Payments",
+      "status": "PASS",
+      "message": "Payment history retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:56.407957+00:00"
+    },
+    {
+      "test": "Cleaner Clock In/Out",
+      "status": "FAIL",
+      "message": "Could not retrieve jobs for clock in/out test",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:57.455409+00:00"
+    },
+    {
+      "test": "Calendar Availability",
+      "status": "PASS",
+      "message": "Availability retrieved for 2025-10-16",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:57.747113+00:00"
+    },
+    {
+      "test": "Time Slots Retrieval",
+      "status": "PASS",
+      "message": "Time slots retrieved for 2025-10-16",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:35:58.169104+00:00"
+    },
+    {
+      "test": "Guest Checkout",
+      "status": "PASS",
+      "message": "Guest booking created: 64fdffcb-1385-4794-aa88-5d74e9f18c9e",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:10.548722+00:00"
+    },
+    {
+      "test": "Admin Login",
+      "status": "PASS",
+      "message": "Admin login successful",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:11.097947+00:00"
+    },
+    {
+      "test": "Admin Bookings View",
+      "status": "FAIL",
+      "message": "HTTP 500: {\"detail\":\"Failed to retrieve bookings: 2 validation errors for Booking\\nhouse_size\\n  Input should be '1000-2000', '2000-2500', '2500-3000', '3000-3500', '3500-4000', '4000-4500', '4500-5000', '5000-6000', '6000-8000', '1000-1500', '1500-2000', '5000+', 'small', 'medium', 'large', '3_bedroom', '4_bedroom', '5_bedroom', 'studio', '1_bedroom', '2_bedroom' or '6_bedroom' [type=enum, input_value='1200-1500', input_type=str]\\n    For further information visit https://errors.pydantic.dev/2.11/v/enum\\npayment_status\\n  Input should be 'pending', 'paid', 'failed' or 'refunded' [type=enum, input_value='completed', input_type=str]\\n    For further information visit https://errors.pydantic.dev/2.11/v/enum\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:12.084847+00:00"
+    },
+    {
+      "test": "Admin Dashboard Features",
+      "status": "FAIL",
+      "message": "Exception: 'list' object has no attribute 'get'",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:12.669111+00:00"
+    },
+    {
+      "test": "Admin Unassigned Jobs",
+      "status": "PASS",
+      "message": "Retrieved 0 unassigned jobs",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:13.373687+00:00"
+    },
+    {
+      "test": "Admin Job Assignment",
+      "status": "FAIL",
+      "message": "Exception: 'list' object has no attribute 'get'",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:13.957076+00:00"
+    },
+    {
+      "test": "Stripe Configuration",
+      "status": "PASS",
+      "message": "Stripe config retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:13.964122+00:00"
+    },
+    {
+      "test": "Stripe Payment Methods",
+      "status": "FAIL",
+      "message": "HTTP 403: {\"detail\":\"Not authenticated\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:13.968082+00:00"
+    },
+    {
+      "test": "Email Service Status",
+      "status": "FAIL",
+      "message": "HTTP 403: {\"detail\":\"Not authenticated\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:13.972228+00:00"
+    },
+    {
+      "test": "Test Email Send",
+      "status": "FAIL",
+      "message": "HTTP 403: {\"detail\":\"Not authenticated\"}",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:13.975558+00:00"
+    },
+    {
+      "test": "Availability Check",
+      "status": "PASS",
+      "message": "Availability check successful: 13 of 13 cleaners available",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:22.132275+00:00"
+    },
+    {
+      "test": "Flutter Profile Data",
+      "status": "PASS",
+      "message": "Profile Data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:23.390546+00:00"
+    },
+    {
+      "test": "Flutter Jobs Data",
+      "status": "FAIL",
+      "message": "HTTP 500: Internal Server Error",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:24.388709+00:00"
+    },
+    {
+      "test": "Flutter Earnings Data",
+      "status": "PASS",
+      "message": "Earnings Data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:25.249187+00:00"
+    },
+    {
+      "test": "Flutter Wallet Data",
+      "status": "PASS",
+      "message": "Wallet Data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:26.238011+00:00"
+    },
+    {
+      "test": "Flutter Payments Data",
+      "status": "PASS",
+      "message": "Payments Data retrieved successfully",
+      "response_data": null,
+      "timestamp": "2025-10-14T20:36:27.104988+00:00"
+    }
+  ]
+}
