@@ -60,7 +60,9 @@ const JobsView = () => {
       if (filterDate !== 'all') params.append('date_range', filterDate);
 
       const response = await axios.get(`${API}/cleaner/jobs?${params}`);
-      setJobs(response.data || []);
+      // Support both {jobs: []} and [] response shapes
+      const data = response.data;
+      setJobs(Array.isArray(data) ? data : (data?.jobs || []));
     } catch (error) {
       console.error('Failed to load jobs:', error);
       toast.error('Failed to load jobs');

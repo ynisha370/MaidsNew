@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Home, BedDouble, Bath, Utensils, Tv, Gamepad2, Briefcase, DollarSign } from 'lucide-react';
+import { ArrowLeft, Home, BedDouble, Bath, Utensils, Tv, Gamepad2, Briefcase, DollarSign, XCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
+import CancellationRequestModal from './CancellationRequestModal';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -37,6 +38,7 @@ const EditCleaningSelection = () => {
   const [selectedServices, setSelectedServices] = useState([]);
   const [aLaCarteCart, setALaCarteCart] = useState([]);
   const [basePrice, setBasePrice] = useState(0);
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
 
   const services = allServices.filter(s => !s.is_a_la_carte);
   const aLaCarteServices = allServices.filter(s => s.is_a_la_carte);
@@ -178,6 +180,14 @@ const EditCleaningSelection = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCancelBooking = () => {
+    setShowCancellationModal(true);
+  };
+
+  const handleCancellationModalClose = () => {
+    setShowCancellationModal(false);
   };
 
   const houseSizeOptions = [
@@ -528,19 +538,38 @@ const EditCleaningSelection = () => {
                     </div>
                   )}
 
-                  <Button
-                    onClick={handleSave}
-                    disabled={submitting}
-                    className="w-full bg-primary hover:bg-primary-light"
-                  >
-                    {submitting ? 'Saving Changes...' : 'Save Changes'}
-                  </Button>
+                  <div className="flex space-x-3">
+                    <Button
+                      onClick={handleCancelBooking}
+                      variant="destructive"
+                      className="flex-1 bg-red-600 hover:bg-red-700"
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Cancel Booking
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={submitting}
+                      className="flex-1 bg-primary hover:bg-primary-light"
+                    >
+                      {submitting ? 'Saving Changes...' : 'Save Changes'}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+
+      {/* Cancellation Modal */}
+      {currentAppointment && (
+        <CancellationRequestModal
+          isOpen={showCancellationModal}
+          onClose={handleCancellationModalClose}
+          booking={currentAppointment}
+        />
+      )}
     </div>
   );
 };

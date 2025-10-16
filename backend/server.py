@@ -73,9 +73,38 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://foodsensescale.tech")
 # Servicable zip codes
 SERVICABLE_ZIP_CODES = ['77433', '77429', '77095', '77377', '77070', '77065']
 
+# Business capacity settings
+MAX_DAILY_BOOKINGS = 10  # Maximum bookings per day
+
 def validate_zip_code(zip_code: str) -> bool:
     """Validate if the zip code is in the servicable area"""
     return zip_code in SERVICABLE_ZIP_CODES
+
+async def check_daily_capacity(booking_date: str) -> dict:
+    """Check if we've reached daily capacity for a given date"""
+    try:
+        # Count confirmed and in-progress bookings for the date
+        booking_count = await db.bookings.count_documents({
+            "booking_date": booking_date,
+            "status": {"$in": ["confirmed", "in_progress"]}
+        })
+        
+        is_at_capacity = booking_count >= MAX_DAILY_BOOKINGS
+        
+        return {
+            "is_at_capacity": is_at_capacity,
+            "current_bookings": booking_count,
+            "max_capacity": MAX_DAILY_BOOKINGS,
+            "available_slots": max(0, MAX_DAILY_BOOKINGS - booking_count)
+        }
+    except Exception as e:
+        print(f"Error checking daily capacity: {str(e)}")
+        return {
+            "is_at_capacity": False,
+            "current_bookings": 0,
+            "max_capacity": MAX_DAILY_BOOKINGS,
+            "available_slots": MAX_DAILY_BOOKINGS
+        }
 
 # Lifespan event handler
 @asynccontextmanager
@@ -156,16 +185,6 @@ class UserRole(str, Enum):
     ADMIN = "admin"
     CLEANER = "cleaner"
 
-class TicketStatus(str, Enum):
-    OPEN = "open"
-    IN_PROGRESS = "in_progress" 
-    CLOSED = "closed"
-
-class TicketPriority(str, Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    URGENT = "urgent"
 
 class ServiceFrequency(str, Enum):
     ONE_TIME = "one_time"
@@ -210,6 +229,12 @@ class InvoiceStatus(str, Enum):
 class DiscountType(str, Enum):
     PERCENTAGE = "percentage"
     FIXED = "fixed"
+
+class SubscriptionStatus(str, Enum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
 
 # Auth Models
 class UserLogin(BaseModel):
@@ -300,6 +325,31 @@ class Booking(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+class Subscription(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    customer_id: str
+    house_size: HouseSize
+    frequency: ServiceFrequency
+    rooms: Optional[Dict[str, Any]] = None
+    services: List[BookingService]
+    a_la_carte_services: List[BookingService] = []
+    base_price: float
+    room_price: float = 0.0
+    a_la_carte_total: float = 0.0
+    total_amount: float
+    status: SubscriptionStatus = SubscriptionStatus.ACTIVE
+    address: Optional[Address] = None
+    special_instructions: Optional[str] = None
+    preferred_time_slot: str
+    preferred_cleaner_id: Optional[str] = None
+    start_date: str  # YYYY-MM-DD format
+    end_date: Optional[str] = None  # YYYY-MM-DD format, None for indefinite
+    next_booking_date: str  # YYYY-MM-DD format
+    total_bookings_created: int = 0
+    total_bookings_completed: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
 class Cleaner(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     email: str
@@ -328,6 +378,58 @@ class CleanerAvailability(BaseModel):
     booking_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class WaitlistEntry(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: str
+    first_name: str
+    last_name: str
+    phone: Optional[str] = None
+    preferred_date: str
+    preferred_time_slot: str
+    frequency: str
+    house_size: str
+    zip_code: str
+    status: str = "waiting"  # waiting, contacted, scheduled, expired
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class WaitlistEntryCreate(BaseModel):
+    email: str
+    first_name: str
+    last_name: str
+    phone: str
+    preferred_frequency: str
+    preferred_time_slot: str
+    house_size: str
+    address: dict
+    notes: Optional[str] = None
+
+class CancellationRequest(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    booking_id: str
+    customer_id: str
+    customer_email: str
+    customer_name: str
+    reason: str
+    requested_at: datetime = Field(default_factory=datetime.utcnow)
+    status: str = "pending"  # pending, approved, rejected
+    admin_notes: Optional[str] = None
+    processed_at: Optional[datetime] = None
+    processed_by: Optional[str] = None
+    refund_amount: Optional[float] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class CancellationRequestCreate(BaseModel):
+    booking_id: str
+    reason: str
+
+class CancellationRequestUpdate(BaseModel):
+    status: str
+    admin_notes: Optional[str] = None
+    refund_amount: Optional[float] = None
 
 class CalendarEvent(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -359,23 +461,6 @@ class TimeSlotAvailability(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-class FAQ(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    question: str
-    answer: str
-    category: str
-    is_active: bool = True
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-class Ticket(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    customer_id: str
-    subject: str
-    message: str
-    status: TicketStatus = TicketStatus.OPEN
-    priority: TicketPriority = TicketPriority.MEDIUM
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 # Invoice Models
 class InvoiceItem(BaseModel):
@@ -1553,6 +1638,256 @@ async def delete_promo_code(promo_id: str, admin_user: User = Depends(get_admin_
     
     return {"message": "Promo code deleted successfully"}
 
+# Waitlist endpoints
+@api_router.post("/waitlist")
+async def add_to_waitlist(waitlist_data: WaitlistEntryCreate):
+    """Add a customer to the waitlist when capacity is reached"""
+    try:
+        # Check if already on waitlist for this date/time
+        existing = await db.waitlist.find_one({
+            "email": waitlist_data.email,
+            "preferred_date": waitlist_data.preferred_date,
+            "preferred_time_slot": waitlist_data.preferred_time_slot
+        })
+        
+        if existing:
+            raise HTTPException(status_code=400, detail="You are already on the waitlist for this date and time slot")
+        
+        # Create waitlist entry
+        waitlist_entry = WaitlistEntry(
+            email=waitlist_data.email,
+            first_name=waitlist_data.first_name,
+            last_name=waitlist_data.last_name,
+            phone=waitlist_data.phone,
+            preferred_date=waitlist_data.address.get('preferred_date', ''),
+            preferred_time_slot=waitlist_data.preferred_time_slot,
+            frequency=waitlist_data.preferred_frequency,
+            house_size=waitlist_data.house_size,
+            zip_code=waitlist_data.address.get('zip_code', ''),
+            notes=waitlist_data.notes
+        )
+        
+        # Add to waitlist
+        waitlist_dict = prepare_for_mongo(waitlist_entry.dict())
+        await db.waitlist.insert_one(waitlist_dict)
+        
+        return {
+            "message": "Successfully added to waitlist. We'll contact you when a spot becomes available.",
+            "waitlist_id": waitlist_entry.id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to add to waitlist: {str(e)}")
+
+@api_router.get("/admin/waitlist")
+async def get_waitlist(admin_user: User = Depends(get_admin_user)):
+    """Get all waitlist entries for admin"""
+    try:
+        entries = await db.waitlist.find().sort("created_at", -1).to_list(1000)
+        return {"waitlist": entries}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get waitlist: {str(e)}")
+
+@api_router.patch("/admin/waitlist/{waitlist_id}")
+async def update_waitlist_status(
+    waitlist_id: str, 
+    status: str,
+    notes: Optional[str] = None,
+    admin_user: User = Depends(get_admin_user)
+):
+    """Update waitlist entry status"""
+    try:
+        update_data = {
+            "status": status,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        if notes:
+            update_data["notes"] = notes
+            
+        await db.waitlist.update_one(
+            {"id": waitlist_id},
+            {"$set": update_data}
+        )
+        
+        return {"message": "Waitlist entry updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update waitlist: {str(e)}")
+
+@api_router.delete("/admin/waitlist/{waitlist_id}")
+async def remove_from_waitlist(waitlist_id: str, admin_user: User = Depends(get_admin_user)):
+    """Remove entry from waitlist"""
+    try:
+        await db.waitlist.delete_one({"id": waitlist_id})
+        return {"message": "Waitlist entry removed successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to remove from waitlist: {str(e)}")
+
+@api_router.get("/capacity/{date}")
+async def check_capacity(date: str):
+    """Check if we're at capacity for a specific date"""
+    try:
+        capacity_info = await check_daily_capacity(date)
+        return capacity_info
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to check capacity: {str(e)}")
+
+# Cancellation Request endpoints
+@api_router.post("/cancellation-requests")
+async def create_cancellation_request(
+    request_data: CancellationRequestCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a cancellation request for a booking"""
+    try:
+        # Get the booking
+        booking = await db.bookings.find_one({"id": request_data.booking_id})
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        
+        # Check if user owns the booking
+        if booking.get("user_id") != current_user.id:
+            raise HTTPException(status_code=403, detail="You can only cancel your own bookings")
+        
+        # Check if booking is already cancelled
+        if booking.get("status") == "cancelled":
+            raise HTTPException(status_code=400, detail="Booking is already cancelled")
+        
+        # Check if there's already a pending cancellation request
+        existing_request = await db.cancellation_requests.find_one({
+            "booking_id": request_data.booking_id,
+            "status": "pending"
+        })
+        if existing_request:
+            raise HTTPException(status_code=400, detail="A cancellation request is already pending for this booking")
+        
+        # Create cancellation request
+        cancellation_request = CancellationRequest(
+            booking_id=request_data.booking_id,
+            customer_id=current_user.id,
+            customer_email=current_user.email,
+            customer_name=f"{current_user.first_name} {current_user.last_name}",
+            reason=request_data.reason
+        )
+        
+        # Save to database
+        request_dict = prepare_for_mongo(cancellation_request.dict())
+        await db.cancellation_requests.insert_one(request_dict)
+        
+        return {
+            "message": "Cancellation request submitted successfully. You will be notified once it's reviewed.",
+            "request_id": cancellation_request.id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create cancellation request: {str(e)}")
+
+@api_router.get("/cancellation-requests")
+async def get_customer_cancellation_requests(current_user: User = Depends(get_current_user)):
+    """Get cancellation requests for the current customer"""
+    try:
+        requests = await db.cancellation_requests.find(
+            {"customer_id": current_user.id}
+        ).sort("created_at", -1).to_list(1000)
+        
+        # Convert ObjectId to string for JSON serialization
+        processed_requests = []
+        for request in requests:
+            request_dict = dict(request)
+            if '_id' in request_dict:
+                request_dict['_id'] = str(request_dict['_id'])
+            processed_requests.append(request_dict)
+        
+        return {"cancellation_requests": processed_requests}
+    except Exception as e:
+        print(f"Error in get_customer_cancellation_requests: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get cancellation requests: {str(e)}")
+
+@api_router.get("/admin/cancellation-requests")
+async def get_all_cancellation_requests(admin_user: User = Depends(get_admin_user)):
+    """Get all cancellation requests for admin"""
+    try:
+        requests = await db.cancellation_requests.find().sort("created_at", -1).to_list(1000)
+        
+        # Convert ObjectId to string for JSON serialization
+        processed_requests = []
+        for request in requests:
+            request_dict = dict(request)
+            if '_id' in request_dict:
+                request_dict['_id'] = str(request_dict['_id'])
+            processed_requests.append(request_dict)
+        
+        return {"cancellation_requests": processed_requests}
+    except Exception as e:
+        print(f"Error in get_all_cancellation_requests: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get cancellation requests: {str(e)}")
+
+@api_router.patch("/admin/cancellation-requests/{request_id}")
+async def update_cancellation_request(
+    request_id: str,
+    request_data: CancellationRequestUpdate,
+    admin_user: User = Depends(get_admin_user)
+):
+    """Update cancellation request status (approve/reject)"""
+    try:
+        # Get the cancellation request
+        request = await db.cancellation_requests.find_one({"id": request_id})
+        if not request:
+            raise HTTPException(status_code=404, detail="Cancellation request not found")
+        
+        if request["status"] != "pending":
+            raise HTTPException(status_code=400, detail="Request has already been processed")
+        
+        # Extract data from request body
+        status = request_data.status
+        admin_notes = request_data.admin_notes
+        refund_amount = request_data.refund_amount
+        
+        # Update the request
+        update_data = {
+            "status": status,
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+            "processed_by": admin_user.id,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        if admin_notes:
+            update_data["admin_notes"] = admin_notes
+        if refund_amount is not None:
+            update_data["refund_amount"] = refund_amount
+        
+        await db.cancellation_requests.update_one(
+            {"id": request_id},
+            {"$set": update_data}
+        )
+        
+        # If approved, cancel the booking
+        if status == "approved":
+            await db.bookings.update_one(
+                {"id": request["booking_id"]},
+                {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+            
+            # If it's a recurring booking, cancel future instances
+            booking = await db.bookings.find_one({"id": request["booking_id"]})
+            if booking and booking.get("frequency") in ['weekly', 'bi_weekly', 'monthly', 'every_3_weeks']:
+                await db.bookings.update_many(
+                    {
+                        "customer_id": booking["customer_id"],
+                        "frequency": booking["frequency"],
+                        "booking_date": {"$gt": booking["booking_date"]},
+                        "status": {"$in": ["pending", "confirmed"]}
+                    },
+                    {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}}
+                )
+        
+        return {"message": f"Cancellation request {status} successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update cancellation request: {str(e)}")
+
 # Services endpoints
 @api_router.get("/services", response_model=List[Service])
 async def get_services():
@@ -1690,7 +2025,7 @@ async def get_cleaner_jobs(
     status: str = Query(None, description="Filter by job status"),
     date_range: str = Query(None, description="Filter by date range: today, tomorrow, week, month")
 ):
-    """Get jobs assigned to the current cleaner"""
+    """Get jobs assigned to the current cleaner in UI-friendly shape"""
     try:
         # Build query for bookings
         query = {"cleaner_id": current_user.id}
@@ -1699,65 +2034,187 @@ async def get_cleaner_jobs(
         if status and status != "all":
             query["status"] = status
 
-        # Apply date range filter
+        # Apply date range filter over booking_date field
         if date_range and date_range != "all":
             today = datetime.now().date()
             if date_range == "today":
-                query["date"] = today.strftime('%Y-%m-%d')
+                query["booking_date"] = today.strftime('%Y-%m-%d')
             elif date_range == "tomorrow":
                 tomorrow = today + timedelta(days=1)
-                query["date"] = tomorrow.strftime('%Y-%m-%d')
+                query["booking_date"] = tomorrow.strftime('%Y-%m-%d')
             elif date_range == "week":
                 week_end = today + timedelta(days=7)
-                query["date"] = {"$gte": today.strftime('%Y-%m-%d'), "$lte": week_end.strftime('%Y-%m-%d')}
+                query["booking_date"] = {"$gte": today.strftime('%Y-%m-%d'), "$lte": week_end.strftime('%Y-%m-%d')}
             elif date_range == "month":
                 month_end = today + timedelta(days=30)
-                query["date"] = {"$gte": today.strftime('%Y-%m-%d'), "$lte": month_end.strftime('%Y-%m-%d')}
+                query["booking_date"] = {"$gte": today.strftime('%Y-%m-%d'), "$lte": month_end.strftime('%Y-%m-%d')}
 
-        # Get bookings with customer details
-        bookings = await db.bookings.find(query).sort("date", 1).to_list(1000)
+        # Fetch bookings
+        bookings = await db.bookings.find(query).sort([("booking_date", 1), ("time_slot", 1)]).to_list(1000)
 
-        # Enhance bookings with customer information
-        enhanced_bookings = []
-        for booking in bookings:
-            # Get customer details
-            customer = await db.users.find_one({"id": booking.get("user_id")})
-            if customer:
-                booking["customer_name"] = f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
-                booking["customer_email"] = customer.get("email", "")
-                booking["customer_phone"] = customer.get("phone", "")
+        jobs = []
+        for b in bookings:
+            # Resolve customer
+            cust = None
+            cust_id = b.get("customer_id") or b.get("user_id")
+            if cust_id and not str(cust_id).startswith("guest_"):
+                cust = await db.users.find_one({"id": cust_id})
+            customer_name = (f"{cust.get('first_name','')} {cust.get('last_name','')}".strip()) if cust else (b.get("customer", {}).get("first_name", "Guest") + " " + b.get("customer", {}).get("last_name", "Customer")).strip()
+            customer_email = cust.get("email") if cust else b.get("customer", {}).get("email")
+            customer_phone = cust.get("phone") if cust else b.get("customer", {}).get("phone")
 
-            enhanced_bookings.append(booking)
+            # Parse time slot
+            slot = b.get("time_slot", "09:00-12:00")
+            parts = [p.strip() for p in slot.split("-")]
+            start_t, end_t = (parts + [parts[0]])[:2] if parts else ("09:00", "12:00")
 
-        return enhanced_bookings
+            addr = b.get("address", {})
+            addr_text = f"{addr.get('street','')}, {addr.get('city','')}, {addr.get('state','')} {addr.get('zip_code','')}".strip().strip(',')
+
+            jobs.append({
+                "id": b.get("id"),
+                "status": b.get("status", "pending"),
+                "date": b.get("booking_date"),
+                "start_time": start_t,
+                "end_time": end_t,
+                "customer_name": customer_name,
+                "customer_email": customer_email,
+                "customer_phone": customer_phone,
+                "address": addr_text,
+                "total_amount": b.get("total_amount", 0),
+                "duration_hours": b.get("estimated_duration_hours", 0),
+                "special_instructions": b.get("special_instructions")
+            })
+
+        return jobs
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching jobs: {str(e)}")
+
+@api_router.get("/cleaner/today-jobs")
+async def get_cleaner_today_jobs(current_user: User = Depends(get_current_cleaner)):
+    """Return cleaner's jobs for today as a flat list the frontend expects"""
+    try:
+        today = datetime.now().strftime('%Y-%m-%d')
+        bookings = await db.bookings.find({
+            "cleaner_id": current_user.id,
+            "booking_date": today,
+            "status": {"$in": ["pending", "confirmed", "in_progress"]}
+        }).sort("time_slot", 1).to_list(100)
+
+        jobs = []
+        for b in bookings:
+            # Load customer
+            cust = await db.users.find_one({"id": b.get("customer_id")}) if not str(b.get("customer_id", "")).startswith("guest_") else None
+            customer_name = (f"{cust.get('first_name','')} {cust.get('last_name','')}".strip()) if cust else "Guest Customer"
+            customer_email = cust.get("email") if cust else b.get("customer", {}).get("email")
+            customer_phone = cust.get("phone") if cust else b.get("customer", {}).get("phone")
+
+            # Parse time slot
+            slot = b.get("time_slot", "09:00-12:00")
+            parts = [p.strip() for p in slot.split("-")]
+            start_t, end_t = (parts + [parts[0]])[:2] if parts else ("09:00", "12:00")
+
+            addr = b.get("address", {})
+            addr_text = f"{addr.get('street','')}, {addr.get('city','')}, {addr.get('state','')} {addr.get('zip_code','')}".strip().strip(',')
+
+            jobs.append({
+                "id": b.get("id"),
+                "status": b.get("status", "pending"),
+                "date": b.get("booking_date"),
+                "start_time": start_t,
+                "end_time": end_t,
+                "customer_name": customer_name,
+                "customer_email": customer_email,
+                "customer_phone": customer_phone,
+                "address": addr_text,
+                "total_amount": b.get("total_amount", 0),
+                "duration_hours": b.get("estimated_duration_hours", 0),
+                "special_instructions": b.get("special_instructions")
+            })
+        return jobs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load today's jobs: {str(e)}")
+
+
+@api_router.get("/cleaner/upcoming-jobs")
+async def get_cleaner_upcoming_jobs(current_user: User = Depends(get_current_cleaner)):
+    """Return cleaner's upcoming jobs for next 7 days as a list"""
+    try:
+        start = datetime.now().strftime('%Y-%m-%d')
+        end = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
+        bookings = await db.bookings.find({
+            "cleaner_id": current_user.id,
+            "booking_date": {"$gte": start, "$lte": end},
+            "status": {"$in": ["pending", "confirmed", "in_progress"]}
+        }).sort([("booking_date", 1), ("time_slot", 1)]).to_list(200)
+
+        jobs = []
+        for b in bookings:
+            slot = b.get("time_slot", "09:00-12:00")
+            parts = [p.strip() for p in slot.split("-")]
+            start_t, end_t = (parts + [parts[0]])[:2] if parts else ("09:00", "12:00")
+            addr = b.get("address", {})
+            addr_text = f"{addr.get('street','')}, {addr.get('city','')}, {addr.get('state','')} {addr.get('zip_code','')}".strip().strip(',')
+
+            jobs.append({
+                "id": b.get("id"),
+                "status": b.get("status", "pending"),
+                "date": b.get("booking_date"),
+                "start_time": start_t,
+                "end_time": end_t,
+                "total_amount": b.get("total_amount", 0),
+                "address": addr_text
+            })
+        return jobs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load upcoming jobs: {str(e)}")
+
+
+@api_router.get("/cleaner/stats")
+async def get_cleaner_stats(current_user: User = Depends(get_current_cleaner)):
+    """Cleaner stats used by dashboard cards"""
+    try:
+        cleaner = await db.cleaners.find_one({"email": current_user.email})
+        if not cleaner:
+            raise HTTPException(status_code=404, detail="Cleaner profile not found")
+
+        total_completed = await db.bookings.count_documents({
+            "cleaner_id": cleaner.get("id"),
+            "status": "completed"
+        })
+        total_jobs = await db.bookings.count_documents({
+            "cleaner_id": cleaner.get("id")
+        })
+        on_time_rate = 95  # placeholder metric
+        return {
+            "completedJobs": total_completed,
+            "totalEarnings": 0,  # frontend doesn't hard-rely on this; earnings endpoint used
+            "rating": cleaner.get("rating", 5.0),
+            "onTimeRate": on_time_rate
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load stats: {str(e)}")
+
 
 @api_router.post("/cleaner/clock-in/{job_id}")
 async def clock_in_job(job_id: str, current_user: User = Depends(get_current_cleaner)):
     """Clock in for a job"""
     try:
-        # Find the booking
         booking = await db.bookings.find_one({"id": job_id, "cleaner_id": current_user.id})
         if not booking:
             raise HTTPException(status_code=404, detail="Job not found")
-
-        if booking.get("status") != "confirmed":
+        if booking.get("status") not in ["confirmed", "pending"]:
             raise HTTPException(status_code=400, detail="Can only clock in for confirmed jobs")
-
-        # Update booking status to in_progress
         await db.bookings.update_one(
             {"id": job_id},
             {"$set": {
                 "status": "in_progress",
-                "clock_in_time": datetime.now(),
-                "updated_at": datetime.now()
+                "clock_in_time": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat()
             }}
         )
-
         return {"message": "Clocked in successfully"}
-
     except HTTPException:
         raise
     except Exception as e:
@@ -1972,6 +2429,13 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
             'is_guest': True
         }
     
+    # If it's a recurring booking, create a subscription instead of individual bookings
+    if booking_data['frequency'] in ['weekly', 'bi_weekly', 'monthly', 'every_3_weeks']:
+        subscription_result = await create_subscription(booking_data, customer_id, is_guest)
+        print(f"Created subscription {subscription_result['subscription_id']} for customer {customer_id}")
+        return subscription_result['first_booking']
+    
+    # For one-time bookings, insert the booking directly
     await db.bookings.insert_one(booking_dict)
     
     # Auto-assign best available cleaner
@@ -2347,37 +2811,130 @@ async def get_guest_booking_summary(booking_id: str):
     
     return summary
 
+@api_router.get("/admin/customers")
+async def get_all_customers(admin_user: User = Depends(get_admin_user)):
+    """Get all customers for admin dashboard"""
+    customers = []
+    
+    # Get registered users
+    registered_users = await db.users.find({"role": "customer"}).to_list(1000)
+    for user in registered_users:
+        # Get their latest booking for address info
+        latest_booking = await db.bookings.find_one(
+            {"user_id": user["id"]},
+            sort=[("created_at", -1)]
+        )
+        
+        address_info = {}
+        if latest_booking and latest_booking.get("address"):
+            address_info = {
+                "address": latest_booking["address"].get("street", ""),
+                "city": latest_booking["address"].get("city", ""),
+                "state": latest_booking["address"].get("state", ""),
+                "zip_code": latest_booking["address"].get("zip_code", "")
+            }
+        
+        customers.append({
+            "id": user["id"],
+            "email": user["email"],
+            "first_name": user["first_name"],
+            "last_name": user["last_name"],
+            "phone": user.get("phone", ""),
+            "is_guest": False,
+            "created_at": user.get("created_at"),
+            **address_info
+        })
+    
+    # Get guest customers from bookings
+    guest_bookings = await db.bookings.find({
+        "customer_id": {"$regex": "^guest_"},
+        "customer": {"$exists": True}
+    }).to_list(1000)
+    
+    # Group guest bookings by customer_id to avoid duplicates
+    guest_customers = {}
+    for booking in guest_bookings:
+        customer_id = booking["customer_id"]
+        if customer_id not in guest_customers:
+            customer_info = booking.get("customer", {})
+            guest_customers[customer_id] = {
+                "id": customer_id,
+                "email": customer_info.get("email", ""),
+                "first_name": customer_info.get("first_name", ""),
+                "last_name": customer_info.get("last_name", ""),
+                "phone": customer_info.get("phone", ""),
+                "address": customer_info.get("address", ""),
+                "city": customer_info.get("city", ""),
+                "state": customer_info.get("state", ""),
+                "zip_code": customer_info.get("zip_code", ""),
+                "is_guest": True,
+                "created_at": booking.get("created_at")
+            }
+    
+    customers.extend(guest_customers.values())
+    
+    # Sort by creation date (newest first)
+    customers.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
+    
+    return customers
+
 @api_router.get("/customers/{customer_id}")
 async def get_customer(customer_id: str):
     """Get customer information by customer ID"""
     # For guest customers, the customer_id is in format "guest_{email}"
     if customer_id.startswith("guest_"):
-        # For guest customers, we need to extract the email and look up the booking
-        # to get the customer information that was stored during booking creation
-        email = customer_id.replace("guest_", "")
+        # For guest customers, look up in the admin customers endpoint data
+        # This is a simplified approach - in production, you might want to cache this
+        customers = []
         
-        # Find the most recent booking for this guest email
-        booking = await db.bookings.find_one(
-            {"customer_id": customer_id},
-            sort=[("created_at", -1)]
-        )
+        # Get registered users
+        users = await db.users.find({"role": "customer"}).to_list(1000)
+        for user in users:
+            customers.append({
+                "id": user["id"],
+                "email": user["email"],
+                "first_name": user["first_name"],
+                "last_name": user["last_name"],
+                "phone": user.get("phone", ""),
+                "address": "",
+                "city": "",
+                "state": "",
+                "zip_code": "",
+                "is_guest": False
+            })
         
-        if not booking:
+        # Get guest customers from bookings
+        guest_bookings = await db.bookings.find({
+            "customer_id": {"$regex": "^guest_"}
+        }).to_list(1000)
+        
+        # Group guest bookings by customer_id to avoid duplicates
+        guest_customers = {}
+        for booking in guest_bookings:
+            customer_id_booking = booking["customer_id"]
+            if customer_id_booking not in guest_customers:
+                customer_info = booking.get("customer", {})
+                guest_customers[customer_id_booking] = {
+                    "id": customer_id_booking,
+                    "email": customer_info.get("email", ""),
+                    "first_name": customer_info.get("first_name", ""),
+                    "last_name": customer_info.get("last_name", ""),
+                    "phone": customer_info.get("phone", ""),
+                    "address": customer_info.get("address", ""),
+                    "city": customer_info.get("city", ""),
+                    "state": customer_info.get("state", ""),
+                    "zip_code": customer_info.get("zip_code", ""),
+                    "is_guest": True
+                }
+        
+        customers.extend(guest_customers.values())
+        
+        # Find the specific customer
+        customer = next((c for c in customers if c["id"] == customer_id), None)
+        if not customer:
             raise HTTPException(status_code=404, detail="Customer not found")
         
-        # Return customer information from the booking
-        return {
-            "id": customer_id,
-            "email": email,
-            "first_name": booking.get("customer", {}).get("first_name", ""),
-            "last_name": booking.get("customer", {}).get("last_name", ""),
-            "phone": booking.get("customer", {}).get("phone", ""),
-            "address": booking.get("customer", {}).get("address", ""),
-            "city": booking.get("customer", {}).get("city", ""),
-            "state": booking.get("customer", {}).get("state", ""),
-            "zip_code": booking.get("customer", {}).get("zip_code", ""),
-            "is_guest": True
-        }
+        return customer
     else:
         # For registered users, look up in the users collection
         user = await db.users.find_one({"id": customer_id})
@@ -2396,6 +2953,467 @@ async def get_customer(customer_id: str):
             "zip_code": "",
             "is_guest": False
         }
+
+@api_router.post("/admin/bookings")
+async def create_admin_booking(booking_data: dict, admin_user: User = Depends(get_admin_user)):
+    """Create a booking for a customer by admin"""
+    # Validate required fields
+    required_fields = ['customer_id', 'house_size', 'frequency', 'services', 'booking_date', 'time_slot', 'address']
+    for field in required_fields:
+        if field not in booking_data:
+            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+    
+    # Get customer information
+    customer_id = booking_data['customer_id']
+    customer = await get_customer(customer_id)
+    
+    # Prepare booking data for internal creation
+    internal_booking_data = {
+        'house_size': booking_data['house_size'],
+        'frequency': booking_data['frequency'],
+        'services': booking_data['services'],
+        'a_la_carte_services': booking_data.get('a_la_carte_services', []),
+        'rooms': booking_data.get('rooms'),
+        'booking_date': booking_data['booking_date'],
+        'time_slot': booking_data['time_slot'],
+        'address': booking_data['address'],
+        'special_instructions': booking_data.get('special_instructions', ''),
+        'promo_code': booking_data.get('promo_code'),
+        'customer': {
+            'email': customer['email'],
+            'first_name': customer['first_name'],
+            'last_name': customer['last_name'],
+            'phone': customer['phone'],
+            'address': customer['address'],
+            'city': customer['city'],
+            'state': customer['state'],
+            'zip_code': customer['zip_code']
+        },
+        'zip_code': customer['zip_code']  # Also add at top level for validation
+    }
+    
+    # Calculate base price
+    base_price = get_base_price(
+        HouseSize(booking_data['house_size']), 
+        ServiceFrequency(booking_data['frequency'])
+    )
+    internal_booking_data['base_price'] = base_price
+    
+    # Create the booking
+    result = await create_booking_internal(internal_booking_data, is_guest=customer['is_guest'])
+    
+    # If it's a recurring booking, create a subscription instead of individual bookings
+    if booking_data['frequency'] in ['weekly', 'bi_weekly', 'monthly', 'every_3_weeks']:
+        subscription_result = await create_subscription(internal_booking_data, customer_id, customer['is_guest'])
+        print(f"Created subscription {subscription_result['subscription_id']} for customer {customer_id}")
+        return subscription_result['first_booking']
+    
+    return result
+
+def calculate_next_booking_date(current_date: str, frequency: str) -> str:
+    """Calculate the next booking date based on frequency"""
+    from datetime import datetime, timedelta
+    
+    base_date = datetime.strptime(current_date, "%Y-%m-%d")
+    
+    # Define recurrence patterns
+    recurrence_patterns = {
+        'weekly': 7,
+        'bi_weekly': 14,
+        'every_3_weeks': 21,
+        'monthly': 30  # Approximate monthly
+    }
+    
+    days_interval = recurrence_patterns.get(frequency, 7)
+    next_date = base_date + timedelta(days=days_interval)
+    return next_date.strftime("%Y-%m-%d")
+
+async def create_subscription(booking_data: dict, customer_id: str, is_guest: bool = False) -> dict:
+    """Create a subscription for recurring bookings instead of individual bookings"""
+    from datetime import datetime
+    
+    # Calculate base price
+    base_price = get_base_price(
+        HouseSize(booking_data['house_size']), 
+        ServiceFrequency(booking_data['frequency'])
+    )
+    
+    # Calculate room price
+    room_price = 0.0
+    if booking_data.get('rooms'):
+        room_price = calculate_room_price(booking_data['rooms'])
+    
+    # Calculate a la carte total
+    a_la_carte_total = 0.0
+    if booking_data.get('a_la_carte_services'):
+        a_la_carte_total = calculate_a_la_carte_total(booking_data['a_la_carte_services'])
+    
+    # Calculate final total
+    final_total = base_price + room_price + a_la_carte_total
+    
+    # Apply promo code discount if applicable
+    promo_code_id = None
+    discount_amount = 0.0
+    if booking_data.get('promo_code'):
+        promo_result = await validate_promo_code(booking_data['promo_code'], customer_id)
+        if promo_result['valid']:
+            promo_code_id = promo_result['promo_code_id']
+            discount_amount = promo_result['discount_amount']
+            final_total = max(0, final_total - discount_amount)
+    
+    # Create subscription
+    subscription = Subscription(
+        customer_id=customer_id,
+        house_size=HouseSize(booking_data['house_size']),
+        frequency=ServiceFrequency(booking_data['frequency']),
+        rooms=booking_data.get('rooms'),
+        services=booking_data['services'],
+        a_la_carte_services=booking_data.get('a_la_carte_services', []),
+        base_price=base_price,
+        room_price=room_price,
+        a_la_carte_total=a_la_carte_total,
+        total_amount=final_total,
+        address=Address(**booking_data['address']) if booking_data.get('address') else None,
+        special_instructions=booking_data.get('special_instructions', ''),
+        preferred_time_slot=booking_data['time_slot'],
+        start_date=booking_data['booking_date'],
+        next_booking_date=calculate_next_booking_date(booking_data['booking_date'], booking_data['frequency'])
+    )
+    
+    subscription_dict = prepare_for_mongo(subscription.model_dump())
+    await db.subscriptions.insert_one(subscription_dict)
+    
+    # Create the first booking from the subscription
+    first_booking = await create_booking_from_subscription(subscription.id, booking_data['booking_date'])
+    
+    return {
+        "subscription_id": subscription.id,
+        "first_booking": first_booking,
+        "next_booking_date": subscription.next_booking_date,
+        "total_amount": final_total
+    }
+
+async def create_booking_from_subscription(subscription_id: str, booking_date: str) -> dict:
+    """Create a single booking from a subscription"""
+    # Get subscription details
+    subscription = await db.subscriptions.find_one({"id": subscription_id})
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    
+    # Check availability for the requested date and time
+    time_slot = subscription['preferred_time_slot']
+    
+    # Check daily capacity first
+    booking_count = await db.bookings.count_documents({
+        "booking_date": booking_date,
+        "status": {"$in": ["confirmed", "in_progress"]}
+    })
+    
+    if booking_count >= MAX_DAILY_BOOKINGS:
+        # Skip this booking if at capacity
+        return {"status": "skipped", "reason": "capacity_full"}
+    
+    # Check if there are available cleaners for this date and time
+    availability_response = await get_availability(booking_date, time_slot)
+    if not availability_response['available']:
+        return {"status": "skipped", "reason": "no_cleaners_available"}
+    
+    # Create booking data
+    booking_data = {
+        'house_size': subscription['house_size'],
+        'frequency': 'one_time',  # Individual bookings from subscription are one-time
+        'services': subscription['services'],
+        'a_la_carte_services': subscription['a_la_carte_services'],
+        'rooms': subscription.get('rooms'),
+        'booking_date': booking_date,
+        'time_slot': time_slot,
+        'address': subscription.get('address'),
+        'special_instructions': subscription.get('special_instructions', ''),
+        'customer_id': subscription['customer_id']
+    }
+    
+    # Create the booking directly (avoiding recursive call)
+    from datetime import datetime, timezone
+    
+    # Calculate pricing
+    base_price = get_base_price(
+        HouseSize(subscription['house_size']), 
+        ServiceFrequency('one_time')
+    )
+    
+    room_price = subscription.get('room_price', 0.0)
+    a_la_carte_total = subscription.get('a_la_carte_total', 0.0)
+    total_amount = base_price + room_price + a_la_carte_total
+    
+    # Create booking object
+    booking = Booking(
+        customer_id=subscription['customer_id'],
+        house_size=HouseSize(subscription['house_size']),
+        frequency=ServiceFrequency('one_time'),
+        rooms=subscription.get('rooms'),
+        services=subscription['services'],
+        a_la_carte_services=subscription.get('a_la_carte_services', []),
+        booking_date=booking_date,
+        time_slot=time_slot,
+        base_price=base_price,
+        room_price=room_price,
+        a_la_carte_total=a_la_carte_total,
+        total_amount=total_amount,
+        address=Address(**subscription['address']) if subscription.get('address') else None,
+        special_instructions=subscription.get('special_instructions', ''),
+        status=BookingStatus.PENDING
+    )
+    
+    # Insert booking into database
+    booking_dict = prepare_for_mongo(booking.model_dump())
+    await db.bookings.insert_one(booking_dict)
+    
+    # Auto-assign cleaner if available
+    try:
+        cleaner_id = await auto_assign_best_cleaner(booking_date, time_slot)
+        if cleaner_id:
+            await db.bookings.update_one(
+                {"id": booking.id},
+                {"$set": {"cleaner_id": cleaner_id, "status": "confirmed"}}
+            )
+            
+            # Update cleaner availability
+            await db.cleaner_availability.update_one(
+                {
+                    "cleaner_id": cleaner_id,
+                    "date": booking_date,
+                    "time_slot": time_slot
+                },
+                {"$set": {"is_booked": True, "booking_id": booking.id}}
+            )
+    except Exception as e:
+        print(f"Error during auto-assignment for subscription booking: {str(e)}")
+    
+    # Update subscription with new booking count
+    await db.subscriptions.update_one(
+        {"id": subscription_id},
+        {"$inc": {"total_bookings_created": 1}}
+    )
+    
+    return booking.model_dump()
+
+async def process_subscription_bookings():
+    """Process active subscriptions and create upcoming bookings"""
+    from datetime import datetime, timedelta
+    
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    # Find active subscriptions that need new bookings
+    active_subscriptions = await db.subscriptions.find({
+        "status": "active",
+        "next_booking_date": {"$lte": today}
+    }).to_list(1000)
+    
+    for subscription in active_subscriptions:
+        try:
+            # Create booking for next_booking_date
+            booking = await create_booking_from_subscription(
+                subscription['id'], 
+                subscription['next_booking_date']
+            )
+            
+            if booking.get('status') != 'skipped':
+                # Update next booking date
+                next_date = calculate_next_booking_date(
+                    subscription['next_booking_date'], 
+                    subscription['frequency']
+                )
+                
+                await db.subscriptions.update_one(
+                    {"id": subscription['id']},
+                    {"$set": {"next_booking_date": next_date}}
+                )
+                
+                print(f"Created booking for subscription {subscription['id']} on {subscription['next_booking_date']}")
+            else:
+                print(f"Skipped booking for subscription {subscription['id']}: {booking.get('reason')}")
+                
+        except Exception as e:
+            print(f"Error processing subscription {subscription['id']}: {str(e)}")
+
+async def create_recurring_bookings(booking_data: dict, customer_id: str, is_guest: bool = False):
+    """Create recurring bookings for weekly, bi-weekly, monthly, and every 3 weeks frequencies"""
+    from datetime import datetime, timedelta
+    
+    frequency = booking_data['frequency']
+    base_date = datetime.strptime(booking_data['booking_date'], "%Y-%m-%d")
+    
+    # Define recurrence patterns
+    recurrence_patterns = {
+        'weekly': 7,
+        'bi_weekly': 14,
+        'every_3_weeks': 21,
+        'monthly': 30  # Approximate monthly
+    }
+    
+    days_interval = recurrence_patterns.get(frequency, 7)
+    
+    # Create 12 additional bookings (3 months worth)
+    for i in range(1, 13):
+        next_date = base_date + timedelta(days=days_interval * i)
+        next_date_str = next_date.strftime("%Y-%m-%d")
+        
+        # Check if this date is available
+        booking_count = await db.bookings.count_documents({
+            "booking_date": next_date_str,
+            "status": {"$in": ["confirmed", "in_progress"]}
+        })
+        
+        if booking_count >= MAX_DAILY_BOOKINGS:
+            continue  # Skip if at capacity
+        
+        # Create booking data for this occurrence
+        recurring_booking_data = booking_data.copy()
+        recurring_booking_data['booking_date'] = next_date_str
+        
+        # Create the recurring booking
+        try:
+            await create_booking_internal(recurring_booking_data, is_guest=is_guest)
+        except Exception as e:
+            print(f"Failed to create recurring booking for {next_date_str}: {e}")
+            continue
+
+# Subscription Management Endpoints
+@api_router.get("/admin/subscriptions")
+async def get_all_subscriptions(admin_user: User = Depends(get_admin_user)):
+    """Get all subscriptions for admin dashboard"""
+    try:
+        print(f"Getting subscriptions for admin: {admin_user.email}")
+        print(f"Database name: {db.name}")
+        
+        # Try to find subscriptions, if collection doesn't exist, it will return empty list
+        subscriptions = await db.subscriptions.find().sort("created_at", -1).to_list(1000)
+        print(f"Found {len(subscriptions)} subscriptions")
+        
+        # Convert ObjectId to string for JSON serialization
+        for subscription in subscriptions:
+            if '_id' in subscription:
+                subscription['_id'] = str(subscription['_id'])
+        
+        return subscriptions
+    except Exception as e:
+        print(f"Error retrieving subscriptions: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Return empty list instead of error for better UX
+        return []
+
+@api_router.get("/admin/subscriptions/{subscription_id}")
+async def get_subscription(subscription_id: str, admin_user: User = Depends(get_admin_user)):
+    """Get a specific subscription by ID"""
+    try:
+        subscription = await db.subscriptions.find_one({"id": subscription_id})
+        if not subscription:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        
+        # Convert ObjectId to string for JSON serialization
+        if '_id' in subscription:
+            subscription['_id'] = str(subscription['_id'])
+        
+        return subscription
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error retrieving subscription: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve subscription: {str(e)}")
+
+@api_router.patch("/admin/subscriptions/{subscription_id}")
+async def update_subscription(subscription_id: str, update_data: dict, admin_user: User = Depends(get_admin_user)):
+    """Update a subscription"""
+    try:
+        result = await db.subscriptions.update_one(
+            {"id": subscription_id},
+            {"$set": {**update_data, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        
+        return {"message": "Subscription updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update subscription: {str(e)}")
+
+@api_router.post("/admin/subscriptions/{subscription_id}/pause")
+async def pause_subscription(subscription_id: str, admin_user: User = Depends(get_admin_user)):
+    """Pause a subscription"""
+    try:
+        result = await db.subscriptions.update_one(
+            {"id": subscription_id},
+            {"$set": {"status": "paused", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        
+        return {"message": "Subscription paused successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to pause subscription: {str(e)}")
+
+@api_router.post("/admin/subscriptions/{subscription_id}/resume")
+async def resume_subscription(subscription_id: str, admin_user: User = Depends(get_admin_user)):
+    """Resume a paused subscription"""
+    try:
+        result = await db.subscriptions.update_one(
+            {"id": subscription_id},
+            {"$set": {"status": "active", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        
+        return {"message": "Subscription resumed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to resume subscription: {str(e)}")
+
+@api_router.post("/admin/subscriptions/{subscription_id}/cancel")
+async def cancel_subscription(subscription_id: str, admin_user: User = Depends(get_admin_user)):
+    """Cancel a subscription"""
+    try:
+        result = await db.subscriptions.update_one(
+            {"id": subscription_id},
+            {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        
+        return {"message": "Subscription cancelled successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to cancel subscription: {str(e)}")
+
+@api_router.post("/admin/subscriptions/process")
+async def process_subscriptions(admin_user: User = Depends(get_admin_user)):
+    """Manually trigger subscription processing"""
+    try:
+        await process_subscription_bookings()
+        return {"message": "Subscription processing completed"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process subscriptions: {str(e)}")
+
+@api_router.get("/customer/subscriptions")
+async def get_customer_subscriptions(current_user: User = Depends(get_current_user)):
+    """Get subscriptions for the current customer"""
+    try:
+        subscriptions = await db.subscriptions.find({
+            "customer_id": current_user.id,
+            "status": {"$in": ["active", "paused"]}
+        }).sort("created_at", -1).to_list(100)
+        return subscriptions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve subscriptions: {str(e)}")
 
 @api_router.get("/customer/next-appointment")
 async def get_next_appointment(current_user: User = Depends(get_current_user)):
@@ -2822,6 +3840,28 @@ async def get_cleaners(admin_user: User = Depends(get_admin_user)):
         print(f"Error in admin cleaners endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve cleaners: {str(e)}")
 
+@api_router.get("/admin/teams")
+async def get_teams(admin_user: User = Depends(get_admin_user)):
+    """Get all teams for admin dashboard"""
+    try:
+        # For now, return empty array since teams feature is not implemented
+        # In the future, this would query a teams collection
+        return {"teams": []}
+    except Exception as e:
+        print(f"Error in admin teams endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve teams: {str(e)}")
+
+@api_router.get("/admin/checklist-templates")
+async def get_checklist_templates(admin_user: User = Depends(get_admin_user)):
+    """Get all checklist templates for admin dashboard"""
+    try:
+        # For now, return empty array since checklist templates feature is not implemented
+        # In the future, this would query a checklist_templates collection
+        return {"templates": []}
+    except Exception as e:
+        print(f"Error in admin checklist templates endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve checklist templates: {str(e)}")
+
 @api_router.post("/admin/cleaners", response_model=Cleaner)
 async def create_cleaner(cleaner_data: dict, admin_user: User = Depends(get_admin_user)):
     cleaner = Cleaner(**cleaner_data)
@@ -3038,41 +4078,6 @@ async def delete_service(service_id: str, admin_user: User = Depends(get_admin_u
         raise HTTPException(status_code=404, detail="Service not found")
     return {"message": "Service deleted successfully"}
 
-@api_router.get("/admin/faqs", response_model=List[FAQ])
-async def get_faqs(admin_user: User = Depends(get_admin_user)):
-    faqs = await db.faqs.find().to_list(1000)
-    return [FAQ(**faq) for faq in faqs]
-
-@api_router.post("/admin/faqs", response_model=FAQ)
-async def create_faq(faq_data: dict, admin_user: User = Depends(get_admin_user)):
-    faq = FAQ(**faq_data)
-    faq_dict = prepare_for_mongo(faq.dict())
-    await db.faqs.insert_one(faq_dict)
-    return faq
-
-@api_router.delete("/admin/faqs/{faq_id}")
-async def delete_faq(faq_id: str, admin_user: User = Depends(get_admin_user)):
-    result = await db.faqs.delete_one({"id": faq_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="FAQ not found")
-    return {"message": "FAQ deleted successfully"}
-
-@api_router.get("/admin/tickets", response_model=List[Ticket])
-async def get_tickets(admin_user: User = Depends(get_admin_user)):
-    tickets = await db.tickets.find().sort("created_at", -1).to_list(1000)
-    return [Ticket(**ticket) for ticket in tickets]
-
-@api_router.patch("/admin/tickets/{ticket_id}")
-async def update_ticket(ticket_id: str, update_data: dict, admin_user: User = Depends(get_admin_user)):
-    result = await db.tickets.update_one(
-        {"id": ticket_id},
-        {"$set": {**update_data, "updated_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-    
-    return {"message": "Ticket updated successfully"}
 
 @api_router.get("/admin/export/bookings")
 async def export_bookings(admin_user: User = Depends(get_admin_user)):
@@ -3095,6 +4100,45 @@ async def export_bookings(admin_user: User = Depends(get_admin_user)):
         })
     
     return {"data": csv_data, "filename": f"bookings_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"}
+
+@api_router.delete("/admin/bookings/clear-all")
+async def clear_all_bookings(admin_user: User = Depends(get_admin_user)):
+    """Clear all bookings from the database - ADMIN ONLY"""
+    try:
+        # Get count before deletion for confirmation
+        total_bookings = await db.bookings.count_documents({})
+        
+        if total_bookings == 0:
+            return {"message": "No bookings found to clear", "deleted_count": 0}
+        
+        # Delete all bookings
+        result = await db.bookings.delete_many({})
+        deleted_count = result.deleted_count
+        
+        # Also clear related collections that might have booking references
+        # Clear calendar events related to bookings
+        await db.calendar_events.delete_many({"event_type": "booking"})
+        
+        # Clear cleaner availability bookings
+        await db.cleaner_availability.update_many(
+            {"is_booked": True},
+            {"$set": {"is_booked": False, "booking_id": None}}
+        )
+        
+        # Clear cancellation requests
+        await db.cancellation_requests.delete_many({})
+        
+        print(f"Admin {admin_user.email} cleared {deleted_count} bookings from database")
+        
+        return {
+            "message": f"Successfully cleared {deleted_count} bookings from the database",
+            "deleted_count": deleted_count,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        print(f"Error clearing bookings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear bookings: {str(e)}")
 
 # Custom Calendar Endpoints (Google Calendar removed)
 
@@ -4574,32 +5618,58 @@ async def get_availability(
 
 @api_router.get("/cleaner/earnings")
 async def get_cleaner_earnings(current_user: User = Depends(get_current_user)):
-    """Get cleaner earnings information"""
+    """Get cleaner earnings summary (plain object as expected by frontend)"""
     if current_user.role != UserRole.CLEANER:
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
     try:
         cleaner = await db.cleaners.find_one({"email": current_user.email})
         if not cleaner:
             raise HTTPException(status_code=404, detail="Cleaner profile not found")
-        
-        # Get completed jobs for this cleaner
+
+        # Fetch this cleaner's completed bookings
         completed_bookings = await db.bookings.find({
             "cleaner_id": cleaner.get("id"),
             "status": "completed"
         }).to_list(1000)
-        
-        total_earnings = sum(booking.get("total_amount", 0) * 0.7 for booking in completed_bookings)  # Assuming 70% commission
-        
+
+        def parse_dt(val):
+            if not val:
+                return None
+            if isinstance(val, datetime):
+                return val
+            try:
+                return datetime.fromisoformat(str(val).replace('Z', '+00:00'))
+            except Exception:
+                return None
+
+        now = datetime.now(timezone.utc)
+        start_of_today = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+        start_of_week = start_of_today - timedelta(days=start_of_today.weekday())
+        start_of_month = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+
+        def is_in_range(b, start):
+            dt = parse_dt(b.get("updated_at")) or parse_dt(b.get("completed_at"))
+            if not dt:
+                # Fallback to booking_date if time missing
+                bd = b.get("booking_date")
+                try:
+                    dt = datetime.fromisoformat(f"{bd}T00:00:00+00:00") if bd else None
+                except Exception:
+                    dt = None
+            return dt >= start if dt else False
+
+        commission = 0.7
+        total = sum((b.get("total_amount", 0) or 0) * commission for b in completed_bookings)
+        today = sum((b.get("total_amount", 0) or 0) * commission for b in completed_bookings if is_in_range(b, start_of_today))
+        this_week = sum((b.get("total_amount", 0) or 0) * commission for b in completed_bookings if is_in_range(b, start_of_week))
+        this_month = sum((b.get("total_amount", 0) or 0) * commission for b in completed_bookings if is_in_range(b, start_of_month))
+
         return {
-            "earnings": {
-                "id": str(uuid.uuid4()),
-                "cleanerId": cleaner.get("id"),
-                "balance": total_earnings,
-                "totalEarnings": total_earnings,
-                "totalWithdrawals": 0,
-                "recentTransactions": []
-            }
+            "today": round(today, 2),
+            "thisWeek": round(this_week, 2),
+            "thisMonth": round(this_month, 2),
+            "total": round(total, 2)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get earnings: {str(e)}")
@@ -5203,8 +6273,9 @@ async def get_calendar_events(
 # Auto-assign cleaner algorithm
 async def auto_assign_best_cleaner(booking_date: str, time_slot: str) -> Optional[str]:
     """
-    Automatically assign the best available cleaner for a booking
-    Returns cleaner_id or None if no cleaner available
+    Automatically assign the best available cleaner for a booking.
+    Treat missing availability records as available (default-open policy) and cap 3 jobs/day.
+    Returns cleaner_id or None if no cleaner available.
     """
     try:
         # Get all approved and active cleaners
@@ -5212,48 +6283,40 @@ async def auto_assign_best_cleaner(booking_date: str, time_slot: str) -> Optiona
             "is_approved": True,
             "is_active": True
         }).to_list(1000)
-        
+
         if not cleaners:
             print("No approved cleaners available")
             return None
-        
-        # Score each cleaner
+
         cleaner_scores = []
-        
         for cleaner in cleaners:
             cleaner_id = cleaner.get("id")
-            
-            # Check availability in cleaner_availability collection
-            availability = await db.cleaner_availability.find_one({
-                "cleaner_id": cleaner_id,
-                "date": booking_date,
-                "time_slot": time_slot,
-                "is_available": True,
-                "is_booked": False
-            })
-            
-            if not availability:
-                continue  # Skip if not available
-            
-            # Count existing bookings for this cleaner on this date
+
+            # Count existing confirmed/in_progress bookings on this date
             bookings_count = await db.bookings.count_documents({
                 "cleaner_id": cleaner_id,
                 "booking_date": booking_date,
                 "status": {"$in": ["confirmed", "in_progress"]}
             })
-            
-            # Skip if cleaner already has 3 or more jobs
             if bookings_count >= 3:
+                # Already at daily cap
                 continue
-            
-            # Calculate score (higher is better)
+
+            # Manual availability record (optional). If none, treat as available.
+            availability = await db.cleaner_availability.find_one({
+                "cleaner_id": cleaner_id,
+                "date": booking_date,
+                "time_slot": time_slot
+            })
+            is_available = True
+            if availability is not None:
+                is_available = availability.get("is_available", True) and not availability.get("is_booked", False)
+            if not is_available:
+                continue
+
             rating = cleaner.get("rating", 5.0)
             total_jobs = cleaner.get("total_jobs", 0)
-            
-            # Prefer higher rating, but also balance workload
-            # Score = rating * 10 - (total_jobs / 100)
             score = (rating * 10) - (total_jobs / 100) - (bookings_count * 5)
-            
             cleaner_scores.append({
                 "cleaner_id": cleaner_id,
                 "score": score,
@@ -5261,19 +6324,16 @@ async def auto_assign_best_cleaner(booking_date: str, time_slot: str) -> Optiona
                 "total_jobs": total_jobs,
                 "bookings_today": bookings_count
             })
-        
+
         if not cleaner_scores:
             print(f"No available cleaners for {booking_date} at {time_slot}")
             return None
-        
-        # Sort by score (highest first)
+
         cleaner_scores.sort(key=lambda x: x["score"], reverse=True)
-        
         best_cleaner = cleaner_scores[0]
         print(f"Auto-assigned cleaner {best_cleaner['cleaner_id']} with score {best_cleaner['score']}")
-        
         return best_cleaner["cleaner_id"]
-        
+
     except Exception as e:
         print(f"Error in auto_assign_best_cleaner: {e}")
         return None
@@ -7076,6 +8136,31 @@ async def create_checkout_session(request: dict):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create checkout session: {str(e)}")
+
+# Background task for processing subscriptions
+import asyncio
+import threading
+from datetime import datetime, time
+
+async def subscription_processor():
+    """Background task to process subscriptions daily"""
+    while True:
+        try:
+            await process_subscription_bookings()
+            print(f"Subscription processing completed at {datetime.now()}")
+        except Exception as e:
+            print(f"Error in subscription processing: {str(e)}")
+        await asyncio.sleep(3600)  # Run every hour
+
+def run_subscription_processor():
+    """Run subscription processor in background thread"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(subscription_processor())
+
+# Start subscription processor in background (commented out for now to avoid startup issues)
+# subscription_thread = threading.Thread(target=run_subscription_processor, daemon=True)
+# subscription_thread.start()
 
 if __name__ == "__main__":
     import uvicorn

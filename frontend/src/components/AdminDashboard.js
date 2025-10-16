@@ -40,13 +40,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { toast } from 'sonner';
 import axios from 'axios';
 import CalendarJobAssignment from './CalendarJobAssignment';
+import DragDropTest from './DragDropTest';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import InvoiceManagement from './InvoiceManagement';
 import PromoCodeManagement from './PromoCodeManagement';
+import WaitlistManagement from './WaitlistManagement';
+import CancellationManagement from './CancellationManagement';
 import EmailReminders from './EmailReminders';
 import SMSReminderManagement from './SMSReminderManagement';
 import AdminSidebar from './AdminSidebar';
+import CreateBookingForm from './CreateBookingForm';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -59,10 +63,12 @@ const AdminDashboard = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [stats, setStats] = useState({});
   const [bookings, setBookings] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [subscriptionFilter, setSubscriptionFilter] = useState('all');
+  const [frequencyFilter, setFrequencyFilter] = useState('all');
+  const [subscriptionSearch, setSubscriptionSearch] = useState('');
   const [cleaners, setCleaners] = useState([]);
   const [pendingCleaners, setPendingCleaners] = useState([]);
-  const [faqs, setFAQs] = useState([]);
-  const [tickets, setTickets] = useState([]);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -76,12 +82,6 @@ const AdminDashboard = () => {
     calendar_integration_enabled: false
   });
   
-  const [newFAQ, setNewFAQ] = useState({
-    question: '',
-    answer: '',
-    category: '',
-    is_active: true
-  });
 
   const [newService, setNewService] = useState({
     name: '',
@@ -118,20 +118,37 @@ const AdminDashboard = () => {
   const [pendingCancellations, setPendingCancellations] = useState([]);
   const [pendingReschedules, setPendingReschedules] = useState([]);
   const [orderHistory, setOrderHistory] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showCreateBookingModal, setShowCreateBookingModal] = useState(false);
+  const [selectedSubscription, setSelectedSubscription] = useState(null);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+
+  // Computed filtered subscriptions
+  const filteredSubscriptions = subscriptions.filter(subscription => {
+    const matchesStatus = subscriptionFilter === 'all' || subscription.status === subscriptionFilter;
+    const matchesFrequency = frequencyFilter === 'all' || subscription.frequency === frequencyFilter;
+    const matchesSearch = subscriptionSearch === '' || 
+      subscription.customer_id.toLowerCase().includes(subscriptionSearch.toLowerCase()) ||
+      subscription.id.toLowerCase().includes(subscriptionSearch.toLowerCase());
+    
+    return matchesStatus && matchesFrequency && matchesSearch;
+  });
 
   // Mobile menu data
   const mobileTabs = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3, shortcut: '1' },
     { id: 'bookings', label: 'Bookings', icon: Calendar, shortcut: '2', count: bookings.length },
-    { id: 'calendar', label: 'Calendar', icon: CalendarDays, shortcut: '3' },
-    { id: 'invoices', label: 'Invoices', icon: Receipt, shortcut: '4' },
-    { id: 'cleaners', label: 'Cleaners', icon: UserCheck, shortcut: '5', count: cleaners.length },
-    { id: 'services', label: 'Services', icon: Package, shortcut: '6', count: services.length },
-    { id: 'promos', label: 'Promo Codes', icon: DollarSign, shortcut: '7' },
-    { id: 'reports', label: 'Reports', icon: TrendingUp, shortcut: '8' },
-    { id: 'orders', label: 'Orders', icon: CalendarIcon, shortcut: '9', count: pendingCancellations.length + pendingReschedules.length },
-    { id: 'faqs', label: 'FAQs', icon: FileText, shortcut: '0', count: faqs.length },
-    { id: 'tickets', label: 'Tickets', icon: MessageSquare, shortcut: 'Shift+1', count: tickets.length },
+    { id: 'subscriptions', label: 'Subscriptions', icon: Calendar, shortcut: '3', count: subscriptions.length },
+    { id: 'customers', label: 'Customers', icon: Users, shortcut: '4' },
+    { id: 'calendar', label: 'Calendar', icon: CalendarDays, shortcut: '5' },
+    { id: 'dragtest', label: 'Drag Test', icon: CalendarDays, shortcut: 'Shift+3' },
+    { id: 'invoices', label: 'Invoices', icon: Receipt, shortcut: '6' },
+    { id: 'cleaners', label: 'Cleaners', icon: UserCheck, shortcut: '7', count: cleaners.length },
+    { id: 'services', label: 'Services', icon: Package, shortcut: '8', count: services.length },
+    { id: 'promos', label: 'Promo Codes', icon: DollarSign, shortcut: '9' },
+    { id: 'reports', label: 'Reports', icon: TrendingUp, shortcut: '0' },
+    { id: 'orders', label: 'Orders', icon: CalendarIcon, shortcut: 'Shift+1', count: pendingCancellations.length + pendingReschedules.length },
     { id: 'email-reminders', label: 'Email Reminders', icon: MessageSquare, shortcut: 'Shift+2' }
   ];
 
@@ -151,11 +168,11 @@ const AdminDashboard = () => {
       await Promise.all([
         loadStats(),
         loadBookings(),
+        loadSubscriptions(),
         loadCleaners(),
         loadPendingCleaners(),
-        loadFAQs(),
-        loadTickets(),
-        loadServices()
+        loadServices(),
+        loadCustomers()
       ]);
     } catch (error) {
       toast.error('Failed to load dashboard data');
@@ -183,6 +200,15 @@ const AdminDashboard = () => {
     }
   };
 
+  const loadSubscriptions = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/subscriptions`);
+      setSubscriptions(response.data);
+    } catch (error) {
+      console.error('Failed to load subscriptions:', error);
+    }
+  };
+
   const loadCleaners = async () => {
     try {
       const response = await axios.get(`${API}/admin/cleaners`);
@@ -192,23 +218,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const loadFAQs = async () => {
-    try {
-      const response = await axios.get(`${API}/admin/faqs`);
-      setFAQs(response.data);
-    } catch (error) {
-      console.error('Failed to load FAQs:', error);
-    }
-  };
 
-  const loadTickets = async () => {
-    try {
-      const response = await axios.get(`${API}/admin/tickets`);
-      setTickets(response.data);
-    } catch (error) {
-      console.error('Failed to load tickets:', error);
-    }
-  };
 
   const loadServices = async () => {
     try {
@@ -217,6 +227,169 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Failed to load services:', error);
     }
+  };
+
+  const loadCustomers = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/customers`);
+      setCustomers(response.data);
+    } catch (error) {
+      console.error('Failed to load customers:', error);
+    }
+  };
+
+  // Subscription management functions
+  const pauseSubscription = async (subscriptionId) => {
+    try {
+      await axios.post(`${API}/admin/subscriptions/${subscriptionId}/pause`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      toast.success('Subscription paused successfully');
+      loadSubscriptions();
+    } catch (error) {
+      console.error('Failed to pause subscription:', error);
+      toast.error('Failed to pause subscription');
+    }
+  };
+
+  const resumeSubscription = async (subscriptionId) => {
+    try {
+      await axios.post(`${API}/admin/subscriptions/${subscriptionId}/resume`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      toast.success('Subscription resumed successfully');
+      loadSubscriptions();
+    } catch (error) {
+      console.error('Failed to resume subscription:', error);
+      toast.error('Failed to resume subscription');
+    }
+  };
+
+  const cancelSubscription = async (subscriptionId) => {
+    try {
+      await axios.post(`${API}/admin/subscriptions/${subscriptionId}/cancel`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      toast.success('Subscription cancelled successfully');
+      loadSubscriptions();
+    } catch (error) {
+      console.error('Failed to cancel subscription:', error);
+      toast.error('Failed to cancel subscription');
+    }
+  };
+
+  const processSubscriptions = async () => {
+    try {
+      await axios.post(`${API}/admin/subscriptions/process`, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      toast.success('Subscription processing completed');
+      loadSubscriptions();
+    } catch (error) {
+      console.error('Failed to process subscriptions:', error);
+      toast.error('Failed to process subscriptions');
+    }
+  };
+
+  const exportSubscriptions = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/subscriptions`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      const csvData = response.data.map(subscription => ({
+        'Subscription ID': subscription.id,
+        'Customer ID': subscription.customer_id,
+        'Frequency': subscription.frequency,
+        'Status': subscription.status,
+        'Next Booking Date': subscription.next_booking_date,
+        'Preferred Time': subscription.preferred_time_slot,
+        'Total Amount': subscription.total_amount,
+        'Bookings Created': subscription.total_bookings_created,
+        'Created At': subscription.created_at
+      }));
+      
+      const csvContent = convertToCSV(csvData);
+      downloadCSV(csvContent, 'subscriptions_export.csv');
+      toast.success('Subscriptions exported successfully');
+    } catch (error) {
+      console.error('Failed to export subscriptions:', error);
+      toast.error('Failed to export subscriptions');
+    }
+  };
+
+  const viewSubscriptionDetails = async (subscriptionId) => {
+    try {
+      const response = await axios.get(`${API}/admin/subscriptions/${subscriptionId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      setSelectedSubscription(response.data);
+      setShowSubscriptionModal(true);
+    } catch (error) {
+      console.error('Failed to get subscription details:', error);
+      toast.error('Failed to get subscription details');
+    }
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Copied to clipboard');
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      toast.error('Failed to copy to clipboard');
+    }
+  };
+
+  const convertToCSV = (data) => {
+    if (data.length === 0) return '';
+    
+    const headers = Object.keys(data[0]);
+    const csvRows = [
+      headers.join(','),
+      ...data.map(row => 
+        headers.map(header => {
+          const value = row[header];
+          return typeof value === 'string' && value.includes(',') 
+            ? `"${value}"` 
+            : value;
+        }).join(',')
+      )
+    ];
+    
+    return csvRows.join('\n');
+  };
+
+  const downloadCSV = (csvContent, filename) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Customer management functions
+  const createBookingForCustomer = async (bookingData) => {
+    try {
+      await axios.post(`${API}/admin/bookings`, bookingData);
+      toast.success('Booking created successfully');
+      setShowCreateBookingModal(false);
+      setSelectedCustomer(null);
+      loadBookings();
+    } catch (error) {
+      toast.error('Failed to create booking');
+      console.error(error);
+    }
+  };
+
+  const handleCreateBooking = (customer) => {
+    setSelectedCustomer(customer);
+    setShowCreateBookingModal(true);
   };
 
   // Booking management functions
@@ -314,27 +487,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // FAQ management functions
-  const createFAQ = async () => {
-    try {
-      await axios.post(`${API}/admin/faqs`, newFAQ);
-      toast.success('FAQ created successfully');
-      setNewFAQ({ question: '', answer: '', category: '', is_active: true });
-      loadFAQs();
-    } catch (error) {
-      toast.error('Failed to create FAQ');
-    }
-  };
-
-  const deleteFAQ = async (faqId) => {
-    try {
-      await axios.delete(`${API}/admin/faqs/${faqId}`);
-      toast.success('FAQ deleted successfully');
-      loadFAQs();
-    } catch (error) {
-      toast.error('Failed to delete FAQ');
-    }
-  };
 
   // Service management functions
   const createService = async () => {
@@ -371,16 +523,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // Ticket management functions
-  const updateTicketStatus = async (ticketId, status) => {
-    try {
-      await axios.patch(`${API}/admin/tickets/${ticketId}`, { status });
-      toast.success('Ticket status updated');
-      loadTickets();
-    } catch (error) {
-      toast.error('Failed to update ticket status');
-    }
-  };
 
   // Export function
   const exportBookings = async () => {
@@ -534,7 +676,7 @@ const AdminDashboard = () => {
       if (event.ctrlKey || event.metaKey) {
         const tabOrder = [
           'dashboard', 'bookings', 'calendar', 'invoices', 'cleaners', 
-          'services', 'promos', 'reports', 'orders', 'faqs', 'tickets'
+          'services', 'promos', 'reports', 'orders'
         ];
         const currentIndex = tabOrder.indexOf(activeTab);
         
@@ -583,12 +725,10 @@ const AdminDashboard = () => {
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           stats={stats}
           counts={{
-            bookings: bookings.length,
+            subscriptions: subscriptions.length,
             cleaners: cleaners.length,
             services: services.length,
             orders: pendingCancellations.length + pendingReschedules.length,
-            faqs: faqs.length,
-            tickets: tickets.length
           }}
           onLogout={() => {
             logout();
@@ -654,8 +794,6 @@ const AdminDashboard = () => {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Open Tickets</p>
-                      <p className="text-2xl font-bold">{stats.open_tickets || 0}</p>
                     </div>
                     <MessageSquare className="text-orange-600" size={24} />
                   </div>
@@ -740,6 +878,11 @@ const AdminDashboard = () => {
           {/* Calendar Job Assignment */}
           <TabsContent value="calendar" className="space-y-6 tab-content">
             <CalendarJobAssignment />
+          </TabsContent>
+
+          {/* Drag Drop Test */}
+          <TabsContent value="dragtest" className="space-y-6 tab-content">
+            <DragDropTest />
           </TabsContent>
 
           {/* Invoice Management */}
@@ -1130,6 +1273,382 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
+          {/* Subscriptions Management */}
+          <TabsContent value="subscriptions" className="space-y-6 tab-content">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Subscription Management</h2>
+              <div className="flex space-x-2">
+                <Button onClick={processSubscriptions} className="btn-hover">
+                  <RotateCcw className="mr-2" size={16} />
+                  Process Subscriptions
+                </Button>
+                <Button onClick={exportSubscriptions} className="btn-hover">
+                  <Download className="mr-2" size={16} />
+                  Export CSV
+                </Button>
+              </div>
+            </div>
+
+            {/* Subscription Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Subscriptions</p>
+                      <p className="text-2xl font-bold">{subscriptions.length}</p>
+                    </div>
+                    <Calendar className="h-8 w-8 text-blue-600" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Active</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {subscriptions.filter(s => s.status === 'active').length}
+                      </p>
+                    </div>
+                    <CheckCircle className="h-8 w-8 text-green-600" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Paused</p>
+                      <p className="text-2xl font-bold text-yellow-600">
+                        {subscriptions.filter(s => s.status === 'paused').length}
+                      </p>
+                    </div>
+                    <Clock className="h-8 w-8 text-yellow-600" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Cancelled</p>
+                      <p className="text-2xl font-bold text-red-600">
+                        {subscriptions.filter(s => s.status === 'cancelled').length}
+                      </p>
+                    </div>
+                    <XCircle className="h-8 w-8 text-red-600" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Subscription Filters */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex flex-wrap gap-4 items-center">
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm font-medium">Filter by Status:</label>
+                    <Select onValueChange={(value) => setSubscriptionFilter(value)}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="All Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="paused">Paused</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm font-medium">Filter by Frequency:</label>
+                    <Select onValueChange={(value) => setFrequencyFilter(value)}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="All Frequencies" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Frequencies</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="bi_weekly">Bi-weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="every_3_weeks">Every 3 Weeks</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      placeholder="Search by customer ID..."
+                      value={subscriptionSearch}
+                      onChange={(e) => setSubscriptionSearch(e.target.value)}
+                      className="w-48"
+                    />
+                  </div>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setSubscriptionFilter('all');
+                      setFrequencyFilter('all');
+                      setSubscriptionSearch('');
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Subscriptions Table */}
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="border-b bg-gray-50">
+                      <tr>
+                        <th className="text-left p-4 font-medium">Subscription ID</th>
+                        <th className="text-left p-4 font-medium">Customer</th>
+                        <th className="text-left p-4 font-medium">Frequency</th>
+                        <th className="text-left p-4 font-medium">Next Booking</th>
+                        <th className="text-left p-4 font-medium">Total Amount</th>
+                        <th className="text-left p-4 font-medium">Status</th>
+                        <th className="text-left p-4 font-medium">Progress</th>
+                        <th className="text-left p-4 font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSubscriptions.map((subscription) => (
+                        <tr key={subscription.id} className="border-b hover:bg-gray-50">
+                          <td className="p-4">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-sm">#{subscription.id.slice(-8)}</span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => copyToClipboard(subscription.id)}
+                              >
+                                <Eye size={14} />
+                              </Button>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div>
+                              <p className="font-medium">{subscription.customer_id.slice(-8)}</p>
+                              <p className="text-sm text-gray-600">ID: {subscription.customer_id}</p>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <Badge variant="outline" className="capitalize">
+                              {subscription.frequency.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                          <td className="p-4">
+                            <div>
+                              <p className="font-medium">{subscription.next_booking_date}</p>
+                              <p className="text-sm text-gray-600">{subscription.preferred_time_slot}</p>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div>
+                              <p className="font-medium">${subscription.total_amount}</p>
+                              <p className="text-sm text-gray-600">per booking</p>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <Badge 
+                              variant={
+                                subscription.status === 'active' ? 'default' :
+                                subscription.status === 'paused' ? 'secondary' :
+                                subscription.status === 'cancelled' ? 'destructive' : 'outline'
+                              }
+                            >
+                              {subscription.status.toUpperCase()}
+                            </Badge>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center space-x-2">
+                              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="bg-blue-600 h-2 rounded-full" 
+                                  style={{ 
+                                    width: `${Math.min(100, (subscription.total_bookings_created / 12) * 100)}%` 
+                                  }}
+                                ></div>
+                              </div>
+                              <span className="text-sm text-gray-600">
+                                {subscription.total_bookings_created}/12
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex space-x-2">
+                              {subscription.status === 'active' ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => pauseSubscription(subscription.id)}
+                                  title="Pause Subscription"
+                                >
+                                  <Clock size={14} />
+                                </Button>
+                              ) : subscription.status === 'paused' ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => resumeSubscription(subscription.id)}
+                                  title="Resume Subscription"
+                                >
+                                  <CheckCircle size={14} />
+                                </Button>
+                              ) : null}
+                              
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => viewSubscriptionDetails(subscription.id)}
+                                title="View Details"
+                              >
+                                <Eye size={14} />
+                              </Button>
+                              
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => cancelSubscription(subscription.id)}
+                                className="text-red-600 hover:text-red-700"
+                                title="Cancel Subscription"
+                              >
+                                <XCircle size={14} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  
+                  {filteredSubscriptions.length === 0 && (
+                    <div className="text-center py-8">
+                      <Calendar className="mx-auto h-12 w-12 text-gray-400" />
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No subscriptions found</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {subscriptions.length === 0 
+                          ? "Subscriptions will appear here when customers create recurring bookings."
+                          : "Try adjusting your filters to see more results."
+                        }
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Customer Management */}
+          <TabsContent value="customers" className="space-y-6 tab-content">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Customer Management</h2>
+              <Badge variant="outline">{customers.length} customers</Badge>
+            </div>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  {customers.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Users className="mx-auto h-12 w-12 text-gray-400" />
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No customers found</h3>
+                      <p className="mt-1 text-sm text-gray-500">Customers will appear here once they sign up or make bookings.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {customers.map((customer) => (
+                            <tr key={customer.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="flex-shrink-0 h-10 w-10">
+                                    <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                      <span className="text-sm font-medium text-blue-600">
+                                        {customer.first_name?.charAt(0)}{customer.last_name?.charAt(0)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {customer.first_name} {customer.last_name}
+                                    </div>
+                                    <div className="text-sm text-gray-500">ID: {customer.id}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">{customer.email}</div>
+                                {customer.phone && (
+                                  <div className="text-sm text-gray-500">{customer.phone}</div>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">
+                                  {customer.address && `${customer.address}, `}
+                                  {customer.city && `${customer.city}, `}
+                                  {customer.state && `${customer.state} `}
+                                  {customer.zip_code}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <Badge variant={customer.is_guest ? "secondary" : "default"}>
+                                  {customer.is_guest ? "Guest" : "Registered"}
+                                </Badge>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div className="flex space-x-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleCreateBooking(customer)}
+                                    className="bg-blue-600 hover:bg-blue-700"
+                                  >
+                                    <Plus className="h-4 w-4 mr-1" />
+                                    Create Booking
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      // View customer details
+                                      setSelectedCustomer(customer);
+                                    }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Cleaners Management */}
           <TabsContent value="cleaners" className="space-y-6 tab-content">
             <div className="flex justify-between items-center mb-4">
@@ -1432,115 +1951,14 @@ const AdminDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* FAQs Management */}
-          <TabsContent value="faqs" className="space-y-6 tab-content">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">FAQ Management</h2>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="btn-hover">
-                    <Plus className="mr-2" size={16} />
-                    Add FAQ
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New FAQ</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <Input
-                      placeholder="Question"
-                      value={newFAQ.question}
-                      onChange={(e) => setNewFAQ({...newFAQ, question: e.target.value})}
-                    />
-                    <Textarea
-                      placeholder="Answer"
-                      value={newFAQ.answer}
-                      onChange={(e) => setNewFAQ({...newFAQ, answer: e.target.value})}
-                      rows={4}
-                    />
-                    <Input
-                      placeholder="Category"
-                      value={newFAQ.category}
-                      onChange={(e) => setNewFAQ({...newFAQ, category: e.target.value})}
-                    />
-                    <Button onClick={createFAQ} className="w-full">
-                      Create FAQ
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
 
-            <div className="space-y-4">
-              {faqs.map((faq) => (
-                <Card key={faq.id}>
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <h3 className="font-semibold mb-2">{faq.question}</h3>
-                        <p className="text-gray-600 mb-2">{faq.answer}</p>
-                        <Badge>{faq.category}</Badge>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => deleteFAQ(faq.id)}
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+
+          <TabsContent value="waitlist" className="space-y-6 tab-content">
+            <WaitlistManagement />
           </TabsContent>
-
-          {/* Support Tickets */}
-          <TabsContent value="tickets" className="space-y-6 tab-content">
-            <h2 className="text-2xl font-bold">Support Tickets</h2>
-
-            <div className="space-y-4">
-              {tickets.map((ticket) => (
-                <Card key={ticket.id}>
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="font-semibold">{ticket.subject}</h3>
-                          {getStatusBadge(ticket.status)}
-                          {getPriorityBadge(ticket.priority)}
-                        </div>
-                        <p className="text-gray-600 mb-2">{ticket.message}</p>
-                        <p className="text-sm text-gray-500">
-                          Customer: {ticket.customer_id.slice(-8)} • Created: {new Date(ticket.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateTicketStatus(ticket.id, 'in_progress')}
-                          disabled={ticket.status === 'in_progress'}
-                        >
-                          <Clock size={14} />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateTicketStatus(ticket.id, 'closed')}
-                          disabled={ticket.status === 'closed'}
-                        >
-                          <CheckCircle size={14} />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+          <TabsContent value="cancellations" className="space-y-6 tab-content">
+            <CancellationManagement />
           </TabsContent>
-
           <TabsContent value="email-reminders" className="space-y-6 tab-content">
             <EmailReminders />
           </TabsContent>
@@ -1552,6 +1970,133 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Create Booking Modal */}
+      <Dialog open={showCreateBookingModal} onOpenChange={setShowCreateBookingModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create Booking for {selectedCustomer?.first_name} {selectedCustomer?.last_name}</DialogTitle>
+          </DialogHeader>
+          {selectedCustomer && (
+            <CreateBookingForm
+              customer={selectedCustomer}
+              services={services}
+              onSubmit={createBookingForCustomer}
+              onCancel={() => setShowCreateBookingModal(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Subscription Details Modal */}
+      <Dialog open={showSubscriptionModal} onOpenChange={setShowSubscriptionModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Subscription Details</DialogTitle>
+          </DialogHeader>
+          {selectedSubscription && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Subscription ID</label>
+                  <p className="font-mono text-sm">{selectedSubscription.id}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Status</label>
+                  <Badge 
+                    variant={
+                      selectedSubscription.status === 'active' ? 'default' :
+                      selectedSubscription.status === 'paused' ? 'secondary' :
+                      selectedSubscription.status === 'cancelled' ? 'destructive' : 'outline'
+                    }
+                  >
+                    {selectedSubscription.status.toUpperCase()}
+                  </Badge>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Customer ID</label>
+                  <p className="font-mono text-sm">{selectedSubscription.customer_id}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Frequency</label>
+                  <Badge variant="outline" className="capitalize">
+                    {selectedSubscription.frequency.replace('_', ' ')}
+                  </Badge>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Next Booking Date</label>
+                  <p className="text-sm">{selectedSubscription.next_booking_date}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Preferred Time Slot</label>
+                  <p className="text-sm">{selectedSubscription.preferred_time_slot}</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Total Amount</label>
+                  <p className="text-lg font-semibold">${selectedSubscription.total_amount}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Bookings Created</label>
+                  <p className="text-sm">{selectedSubscription.total_bookings_created} / 12</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Start Date</label>
+                  <p className="text-sm">{selectedSubscription.start_date}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Created At</label>
+                  <p className="text-sm">{new Date(selectedSubscription.created_at).toLocaleString()}</p>
+                </div>
+              </div>
+              
+              {selectedSubscription.address && (
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Address</label>
+                  <p className="text-sm">
+                    {selectedSubscription.address.street}, {selectedSubscription.address.city}, 
+                    {selectedSubscription.address.state} {selectedSubscription.address.zip_code}
+                  </p>
+                </div>
+              )}
+              
+              {selectedSubscription.special_instructions && (
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Special Instructions</label>
+                  <p className="text-sm">{selectedSubscription.special_instructions}</p>
+                </div>
+              )}
+              
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSubscriptionModal(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    copyToClipboard(selectedSubscription.id);
+                  }}
+                >
+                  Copy ID
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

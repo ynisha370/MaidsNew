@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, CreditCard, Home, Phone, FileText, Settings, Plus, Edit, DollarSign, History, MessageSquare } from 'lucide-react';
+import { Calendar, Clock, CreditCard, Home, Phone, FileText, Settings, Plus, Edit, DollarSign, History, MessageSquare, XCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
+import CancellationRequestModal from './CancellationRequestModal';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -17,6 +18,8 @@ const CustomerDashboard = () => {
   const [upcomingAppointments, setUpcomingAppointments] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
+  const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -90,6 +93,18 @@ const CustomerDashboard = () => {
     if (hour < 12) return 'Good morning';
     if (hour < 18) return 'Good afternoon';
     return 'Good evening';
+  };
+
+  const handleCancelBooking = (booking) => {
+    setSelectedBookingForCancellation(booking);
+    setShowCancellationModal(true);
+  };
+
+  const handleCancellationModalClose = () => {
+    setShowCancellationModal(false);
+    setSelectedBookingForCancellation(null);
+    // Reload dashboard data to reflect any changes
+    loadDashboardData();
   };
 
   if (loading) {
@@ -218,6 +233,14 @@ const CustomerDashboard = () => {
                       >
                         <MessageSquare className="mr-2" size={16} />
                         Leave Notes
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleCancelBooking(nextAppointment)}
+                        className="flex items-center text-red-600 border-red-200 hover:bg-red-50"
+                      >
+                        <XCircle className="mr-2" size={16} />
+                        Cancel
                       </Button>
                     </div>
                   </div>
@@ -393,6 +416,13 @@ const CustomerDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Cancellation Request Modal */}
+      <CancellationRequestModal
+        isOpen={showCancellationModal}
+        onClose={handleCancellationModalClose}
+        booking={selectedBookingForCancellation}
+      />
     </div>
   );
 };

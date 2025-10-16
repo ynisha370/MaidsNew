@@ -11,7 +11,10 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  Move,
+  Trash2,
+  Edit
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -26,6 +29,7 @@ const API = `${BACKEND_URL}/api`;
 
 // Draggable Job Card Component
 const DraggableJobCard = ({ job }) => {
+  console.log('🎯 Rendering DraggableJobCard for job:', job);
   const {
     attributes,
     listeners,
@@ -39,6 +43,8 @@ const DraggableJobCard = ({ job }) => {
       job: job
     }
   });
+  
+  console.log('Draggable attributes:', { attributes, listeners, isDragging });
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
@@ -54,12 +60,19 @@ const DraggableJobCard = ({ job }) => {
       className={`cursor-grab active:cursor-grabbing transition-all duration-200 hover:shadow-md ${
         isDragging ? 'opacity-60' : ''
       }`}
+      onMouseDown={(e) => {
+        console.log('🖱️ Mouse down on job card:', job.id);
+        e.preventDefault();
+      }}
+      onDragStart={(e) => {
+        console.log('🎯 Native drag start on job card:', job.id);
+      }}
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-3">
           <div>
             <h4 className="font-semibold text-sm">#{job.id.slice(-8)}</h4>
-            <p className="text-xs text-gray-500">Customer: {job.customer_id}</p>
+            <p className="text-xs text-gray-500">Customer: {typeof job.customer_id === 'object' ? job.customer_id.name || 'Unknown' : job.customer_id}</p>
           </div>
           <Badge variant="outline" className="text-xs">
             {job.estimated_duration_hours}h
@@ -69,12 +82,12 @@ const DraggableJobCard = ({ job }) => {
         <div className="space-y-2">
           <div className="flex items-center text-xs text-gray-600">
             <Calendar className="w-3 h-3 mr-1" />
-            <span>{job.booking_date}</span>
+            <span>{typeof job.booking_date === 'object' ? job.booking_date.date || job.booking_date : job.booking_date}</span>
           </div>
           
           <div className="flex items-center text-xs text-gray-600">
             <Clock className="w-3 h-3 mr-1" />
-            <span>{job.time_slot}</span>
+            <span>{typeof job.time_slot === 'object' ? job.time_slot.start + '-' + job.time_slot.end : job.time_slot}</span>
           </div>
           
           <div className="flex items-center text-xs text-gray-600">
@@ -84,7 +97,7 @@ const DraggableJobCard = ({ job }) => {
           
           <div className="flex items-center text-xs text-gray-600">
             <Repeat className="w-3 h-3 mr-1" />
-            <span>{job.frequency.replace('_', ' ')}</span>
+            <span>{typeof job.frequency === 'object' ? job.frequency.type || job.frequency : job.frequency?.replace('_', ' ') || 'One-time'}</span>
           </div>
           
           <div className="flex items-center text-xs font-medium text-green-600">
@@ -95,7 +108,12 @@ const DraggableJobCard = ({ job }) => {
           {job.address && (
             <div className="flex items-center text-xs text-gray-600">
               <MapPin className="w-3 h-3 mr-1" />
-              <span>{job.address.city}, {job.address.state}</span>
+              <span>
+                {typeof job.address === 'object' 
+                  ? `${job.address.city || ''}, ${job.address.state || ''}`.replace(/^,\s*|,\s*$/g, '').replace(/,\s*,/g, ',')
+                  : job.address || 'No address'
+                }
+              </span>
             </div>
           )}
         </div>
@@ -105,7 +123,8 @@ const DraggableJobCard = ({ job }) => {
 };
 
 // Droppable Calendar Cell Component
-const DroppableCalendarCell = ({ cleaner, timeSlot, date, isAvailable, existingJobs }) => {
+const DroppableCalendarCell = ({ cleaner, timeSlot, date, isAvailable, existingJobs, onJobMove, onJobEdit, onJobDelete }) => {
+  console.log('🎯 Rendering DroppableCalendarCell:', { cleaner: cleaner.cleaner_id, timeSlot, isAvailable });
   const { isOver, setNodeRef } = useDroppable({
     id: `${cleaner.cleaner_id}-${timeSlot}`,
     data: {
@@ -116,16 +135,18 @@ const DroppableCalendarCell = ({ cleaner, timeSlot, date, isAvailable, existingJ
       isAvailable: isAvailable
     }
   });
+  
+  console.log('Droppable cell isOver:', isOver);
 
   const getCellColor = () => {
-    if (existingJobs.length > 0) return 'bg-red-100 border-red-200';
+    if (existingJobs.length > 0) return 'bg-blue-100 border-blue-200';
     if (isAvailable === false) return 'bg-red-50 border-red-100';
     if (isAvailable === true) return 'bg-green-50 border-green-100';
     return 'bg-gray-50 border-gray-200';
   };
 
   const getIcon = () => {
-    if (existingJobs.length > 0) return <XCircle className="w-4 h-4 text-red-600" />;
+    if (existingJobs.length > 0) return <CheckCircle className="w-4 h-4 text-blue-600" />;
     if (isAvailable === false) return <XCircle className="w-4 h-4 text-red-500" />;
     if (isAvailable === true) return <CheckCircle className="w-4 h-4 text-green-600" />;
     return <AlertCircle className="w-4 h-4 text-gray-400" />;
@@ -138,7 +159,7 @@ const DroppableCalendarCell = ({ cleaner, timeSlot, date, isAvailable, existingJ
         relative h-20 border-2 rounded-lg transition-all duration-200
         ${getCellColor()}
         ${isOver ? 'border-blue-400 bg-blue-100' : ''}
-        ${isAvailable ? 'cursor-pointer' : 'cursor-not-allowed'}
+        ${isAvailable ? 'cursor-pointer hover:shadow-md' : 'cursor-not-allowed'}
       `}
     >
       <div className="p-2 h-full flex flex-col justify-between">
@@ -157,6 +178,35 @@ const DroppableCalendarCell = ({ cleaner, timeSlot, date, isAvailable, existingJ
         <div className="text-xs text-center text-gray-600">
           {timeSlot}
         </div>
+        
+        {existingJobs.length > 0 && (
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-200 bg-black bg-opacity-50 rounded-lg">
+            <div className="flex space-x-1">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-6 w-6 p-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onJobEdit?.(existingJobs[0]);
+                }}
+              >
+                <Edit className="w-3 h-3" />
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-6 w-6 p-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onJobDelete?.(existingJobs[0]);
+                }}
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -171,6 +221,10 @@ const CalendarJobAssignment = () => {
   const [draggedJob, setDraggedJob] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [assignmentNotes, setAssignmentNotes] = useState('');
+  
+  // Job management state
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [showJobDetails, setShowJobDetails] = useState(false);
 
   const timeSlots = ["08:00-10:00", "10:00-12:00", "12:00-14:00", "14:00-16:00", "16:00-18:00"];
 
@@ -194,7 +248,9 @@ const CalendarJobAssignment = () => {
 
   const loadUnassignedJobs = async () => {
     try {
+      console.log('🔄 Loading unassigned jobs...');
       const response = await axios.get(`${API}/admin/calendar/unassigned-jobs`);
+      console.log('Unassigned jobs response:', response.data);
       setUnassignedJobs(response.data.unassigned_jobs || []);
     } catch (error) {
       console.error('Failed to load unassigned jobs:', error);
@@ -203,7 +259,9 @@ const CalendarJobAssignment = () => {
 
   const loadCleanerAvailability = async () => {
     try {
+      console.log('🔄 Loading cleaner availability...');
       const response = await axios.get(`${API}/admin/calendar/availability-summary?date=${selectedDate}`);
+      console.log('Cleaner availability response:', response.data);
       setCleanerAvailability(response.data.cleaners || []);
     } catch (error) {
       console.error('Failed to load cleaner availability:', error);
@@ -211,45 +269,85 @@ const CalendarJobAssignment = () => {
   };
 
   const handleDragStart = (event) => {
+    console.log('🎯 Drag started:', event);
     const { active } = event;
+    console.log('Active data:', active.data.current);
     if (active.data.current?.type === 'job') {
+      console.log('Setting dragged job:', active.data.current.job);
       setDraggedJob(active.data.current.job);
     }
   };
 
   const handleDragEnd = async (event) => {
+    console.log('🎯 Drag ended:', event);
     const { active, over } = event;
+    console.log('Active:', active);
+    console.log('Over:', over);
     setDraggedJob(null);
 
-    if (!over || !active.data.current?.job) return;
+    if (!over || !active.data.current?.job) {
+      console.log('❌ No valid drop target or job data');
+      return;
+    }
 
     const job = active.data.current.job;
     const dropData = over.data.current;
+    console.log('Job:', job);
+    console.log('Drop data:', dropData);
 
     if (dropData?.type === 'calendar-slot') {
       const { cleanerId, timeSlot, isAvailable } = dropData;
 
-      // Check for warnings but allow assignment anyway (admin override)
-      const warnings = [];
+      // Check if this is moving an existing job or assigning a new one
+      const isExistingJob = job.cleaner_id && job.time_slot;
       
-      if (!isAvailable) {
-        warnings.push('Time slot is marked as unavailable');
-      }
+      if (isExistingJob) {
+        // Moving existing job to new slot
+        const warnings = [];
+        
+        if (!isAvailable) {
+          warnings.push('Time slot is marked as unavailable');
+        }
 
-      // Check if there are already existing jobs in this slot
-      const existingJobs = getExistingJobsForSlot(cleanerId, timeSlot);
-      if (existingJobs.length > 0) {
-        warnings.push(`${existingJobs.length} job(s) already assigned to this slot`);
-      }
+        // Check if there are already existing jobs in this slot
+        const existingJobs = getExistingJobsForSlot(cleanerId, timeSlot);
+        if (existingJobs.length > 0) {
+          warnings.push(`${existingJobs.length} job(s) already assigned to this slot`);
+        }
 
-      // Show confirmation dialog (with warnings if any)
-      setConfirmDialog({
-        job,
-        cleanerId,
-        timeSlot,
-        date: selectedDate,
-        warnings
-      });
+        // Show confirmation dialog for moving job
+        setConfirmDialog({
+          job,
+          cleanerId,
+          timeSlot,
+          date: selectedDate,
+          warnings,
+          isMove: true
+        });
+      } else {
+        // Assigning new job to slot
+        const warnings = [];
+        
+        if (!isAvailable) {
+          warnings.push('Time slot is marked as unavailable');
+        }
+
+        // Check if there are already existing jobs in this slot
+        const existingJobs = getExistingJobsForSlot(cleanerId, timeSlot);
+        if (existingJobs.length > 0) {
+          warnings.push(`${existingJobs.length} job(s) already assigned to this slot`);
+        }
+
+        // Show confirmation dialog for assignment
+        setConfirmDialog({
+          job,
+          cleanerId,
+          timeSlot,
+          date: selectedDate,
+          warnings,
+          isMove: false
+        });
+      }
     }
   };
 
@@ -257,28 +355,42 @@ const CalendarJobAssignment = () => {
     if (!confirmDialog) return;
 
     try {
-      const { job, cleanerId, timeSlot } = confirmDialog;
+      const { job, cleanerId, timeSlot, isMove } = confirmDialog;
       
       // Parse time slot to create start and end times
       const [startTimeStr, endTimeStr] = timeSlot.split('-');
       const startTime = new Date(`${selectedDate}T${startTimeStr}:00`);
       const endTime = new Date(`${selectedDate}T${endTimeStr}:00`);
 
-      const assignmentData = {
-        booking_id: job.id,
-        cleaner_id: cleanerId,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        notes: assignmentNotes
-      };
+      if (isMove) {
+        // Moving existing job
+        const moveData = {
+          cleaner_id: cleanerId,
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString(),
+          notes: assignmentNotes || `Moved to new slot on ${selectedDate}`
+        };
 
-      const response = await axios.post(`${API}/admin/calendar/assign-job`, assignmentData);
-      
-      // Handle response with warnings
-      if (response.data.warning) {
-        toast.warning(response.data.message || 'Job assigned with warnings');
+        await axios.patch(`${API}/admin/bookings/${job.id}`, moveData);
+        toast.success('Job moved successfully');
       } else {
-        toast.success('Job assigned successfully');
+        // Assigning new job
+        const assignmentData = {
+          booking_id: job.id,
+          cleaner_id: cleanerId,
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString(),
+          notes: assignmentNotes
+        };
+
+        const response = await axios.post(`${API}/admin/calendar/assign-job`, assignmentData);
+        
+        // Handle response with warnings
+        if (response.data.warning) {
+          toast.warning(response.data.message || 'Job assigned with warnings');
+        } else {
+          toast.success('Job assigned successfully');
+        }
       }
       
       setConfirmDialog(null);
@@ -288,7 +400,7 @@ const CalendarJobAssignment = () => {
       await loadData();
       
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to assign job');
+      toast.error(error.response?.data?.detail || 'Failed to process job');
     }
   };
 
@@ -301,6 +413,47 @@ const CalendarJobAssignment = () => {
 
     // Return existing jobs from the slot data
     return cleaner.slots[timeSlot].existing_jobs || [];
+  };
+
+  // Handle job edit
+  const handleJobEdit = (job) => {
+    setSelectedJob(job);
+    setShowJobDetails(true);
+  };
+
+  // Handle job delete
+  const handleJobDelete = async (job) => {
+    if (window.confirm('Are you sure you want to delete this job?')) {
+      try {
+        await axios.delete(`${API}/admin/bookings/${job.id}`);
+        toast.success('Job deleted successfully');
+        loadData();
+      } catch (error) {
+        toast.error('Failed to delete job');
+      }
+    }
+  };
+
+  // Handle job move between time slots
+  const handleJobMove = async (job, newCleanerId, newTimeSlot) => {
+    try {
+      const [startTimeStr, endTimeStr] = newTimeSlot.split('-');
+      const startTime = new Date(`${selectedDate}T${startTimeStr}:00`);
+      const endTime = new Date(`${selectedDate}T${endTimeStr}:00`);
+
+      const moveData = {
+        cleaner_id: newCleanerId,
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        notes: `Moved from previous slot on ${selectedDate}`
+      };
+
+      await axios.patch(`${API}/admin/bookings/${job.id}`, moveData);
+      toast.success('Job moved successfully');
+      loadData();
+    } catch (error) {
+      toast.error('Failed to move job');
+    }
   };
 
   return (
@@ -430,6 +583,9 @@ const CalendarJobAssignment = () => {
                                     date={selectedDate}
                                     isAvailable={isAvailable}
                                     existingJobs={existingJobs}
+                                    onJobMove={handleJobMove}
+                                    onJobEdit={handleJobEdit}
+                                    onJobDelete={handleJobDelete}
                                   />
                                 </td>
                               );
@@ -466,12 +622,14 @@ const CalendarJobAssignment = () => {
         </DragOverlay>
       </DndContext>
 
-      {/* Assignment Confirmation Dialog */}
+      {/* Assignment/Move Confirmation Dialog */}
       {confirmDialog && (
         <Dialog open={true} onOpenChange={() => setConfirmDialog(null)}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Confirm Job Assignment</DialogTitle>
+              <DialogTitle>
+                {confirmDialog.isMove ? 'Confirm Job Move' : 'Confirm Job Assignment'}
+              </DialogTitle>
             </DialogHeader>
             
             <div className="space-y-4">
@@ -486,13 +644,20 @@ const CalendarJobAssignment = () => {
               </div>
 
               <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="font-semibold mb-2">Assignment Details</h4>
+                <h4 className="font-semibold mb-2">
+                  {confirmDialog.isMove ? 'Move Details' : 'Assignment Details'}
+                </h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>Date: {confirmDialog.date}</div>
                   <div>Time: {confirmDialog.timeSlot}</div>
                   <div className="col-span-2">
                     Cleaner: {cleanerAvailability.find(c => c.cleaner_id === confirmDialog.cleanerId)?.cleaner_name}
                   </div>
+                  {confirmDialog.isMove && (
+                    <div className="col-span-2 text-orange-600 font-medium">
+                      This will move the job from its current slot to the new slot
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -531,7 +696,7 @@ const CalendarJobAssignment = () => {
                   Cancel
                 </Button>
                 <Button onClick={confirmAssignment}>
-                  Confirm Assignment
+                  {confirmDialog.isMove ? 'Move Job' : 'Assign Job'}
                 </Button>
               </div>
             </div>
@@ -556,12 +721,83 @@ const CalendarJobAssignment = () => {
               <span>No Calendar Data</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-red-100 border border-red-200 rounded"></div>
-              <span>Has Existing Jobs</span>
+              <div className="w-4 h-4 bg-blue-100 border border-blue-200 rounded"></div>
+              <span>Has Assigned Jobs (hover to edit/delete)</span>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Job Details Modal */}
+      {showJobDetails && selectedJob && (
+        <Dialog open={true} onOpenChange={() => setShowJobDetails(false)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Job Details</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">Customer:</span>
+                  <p>{selectedJob.customer_name}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Service:</span>
+                  <p>{selectedJob.service_name}</p>
+                </div>
+                <div>
+                  <span className="font-medium">House Size:</span>
+                  <p>{selectedJob.house_size}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Duration:</span>
+                  <p>{selectedJob.estimated_duration_hours} hours</p>
+                </div>
+                <div>
+                  <span className="font-medium">Price:</span>
+                  <p>${selectedJob.total_price}</p>
+                </div>
+                <div>
+                  <span className="font-medium">Status:</span>
+                  <p>{selectedJob.status}</p>
+                </div>
+                <div className="col-span-2">
+                  <span className="font-medium">Address:</span>
+                  <p>
+                    {typeof selectedJob.address === 'object' 
+                      ? `${selectedJob.address.street || ''}${selectedJob.address.apartment ? ', ' + selectedJob.address.apartment : ''}, ${selectedJob.address.city || ''}, ${selectedJob.address.state || ''} ${selectedJob.address.zip_code || ''}`.replace(/^,\s*|,\s*$/g, '').replace(/,\s*,/g, ',')
+                      : selectedJob.address || 'No address provided'
+                    }
+                  </p>
+                </div>
+                {selectedJob.notes && (
+                  <div className="col-span-2">
+                    <span className="font-medium">Notes:</span>
+                    <p>{selectedJob.notes}</p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setShowJobDetails(false)}>
+                  Close
+                </Button>
+                <Button 
+                  variant="destructive"
+                  onClick={() => {
+                    setShowJobDetails(false);
+                    handleJobDelete(selectedJob);
+                  }}
+                >
+                  Delete Job
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
     </div>
   );
 };

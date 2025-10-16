@@ -187,7 +187,7 @@ const CleanerLogin = () => {
                 <h4 className="text-sm font-medium text-green-800 mb-2">Cleaner Demo Credentials</h4>
                 <div className="text-sm text-green-700">
                   <p><strong>Email:</strong> cleaner@maids.com</p>
-                  <p><strong>Password:</strong> cleaner@123</p>
+                  <p><strong>Password:</strong> cleaner123</p>
                 </div>
                 <Button
                   type="button"

@@ -69,18 +69,18 @@ const CleanerDashboard = () => {
       setLoading(true);
 
       // Load dashboard overview data
-      const [todayResponse, upcomingResponse, earningsResponse, statsResponse] = await Promise.all([
-        axios.get(`${API}/cleaner/today-jobs`),
-        axios.get(`${API}/cleaner/upcoming-jobs`),
-        axios.get(`${API}/cleaner/earnings`),
-        axios.get(`${API}/cleaner/stats`)
+      const [todayJobs, upcomingJobs, earnings, stats] = await Promise.all([
+        axios.get(`${API}/cleaner/today-jobs`).then(r => r.data).catch(() => []),
+        axios.get(`${API}/cleaner/upcoming-jobs`).then(r => r.data).catch(() => []),
+        axios.get(`${API}/cleaner/earnings`).then(r => r.data).catch(() => ({ today: 0, thisWeek: 0, thisMonth: 0, total: 0 })),
+        axios.get(`${API}/cleaner/stats`).then(r => r.data).catch(() => ({ completedJobs: 0, totalEarnings: 0, rating: 5, onTimeRate: 0 }))
       ]);
 
       setDashboardData({
-        todayJobs: todayResponse.data || [],
-        upcomingJobs: upcomingResponse.data || [],
-        earnings: earningsResponse.data || {},
-        stats: statsResponse.data || {},
+        todayJobs: todayJobs || [],
+        upcomingJobs: upcomingJobs || [],
+        earnings: earnings || {},
+        stats: stats || {},
         notifications: [] // Can be loaded from separate endpoint
       });
     } catch (error) {

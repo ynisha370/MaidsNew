@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drag and Drop Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .debug-info {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .job-card {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            cursor: grab;
+            user-select: none;
+        }
+        .job-card:active {
+            cursor: grabbing;
+        }
+        .calendar-slot {
+            background: #f0f0f0;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 10px 0;
+            min-height: 100px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .calendar-slot.drag-over {
+            background: #e8f5e8;
+            border-color: #4caf50;
+        }
+        .status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Drag and Drop Debug Test</h1>
+        
+        <div class="debug-info">
+            <h2>Debug Information</h2>
+            <p><strong>Issue:</strong> Drag and drop not working in admin dashboard calendar</p>
+            <p><strong>Component:</strong> CalendarJobAssignment</p>
+            <p><strong>Library:</strong> @dnd-kit/core v6.1.0</p>
+            <p><strong>Status:</strong> <span class="status warning">Investigating</span></p>
+        </div>
+
+        <div class="test-section">
+            <h2>Potential Issues to Check:</h2>
+            <ul>
+                <li>✅ @dnd-kit packages installed correctly</li>
+                <li>❓ DndContext properly configured</li>
+                <li>❓ useDraggable and useDroppable hooks working</li>
+                <li>❓ Event handlers (onDragStart, onDragEnd) functioning</li>
+                <li>❓ Data attributes set correctly</li>
+                <li>❓ CSS conflicts preventing drag</li>
+                <li>❓ JavaScript errors in console</li>
+                <li>❓ Component re-rendering issues</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>Manual Test Instructions:</h2>
+            <ol>
+                <li>Open browser developer tools (F12)</li>
+                <li>Go to Console tab</li>
+                <li>Navigate to Admin Dashboard → Calendar tab</li>
+                <li>Try to drag a job card from the left panel</li>
+                <li>Check for any JavaScript errors</li>
+                <li>Check if drag events are being triggered</li>
+                <li>Verify data is being passed correctly</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h2>Common Drag and Drop Issues:</h2>
+            <ul>
+                <li><strong>Missing event handlers:</strong> onDragStart/onDragEnd not properly connected</li>
+                <li><strong>Data attributes:</strong> Missing or incorrect data in draggable/droppable items</li>
+                <li><strong>CSS conflicts:</strong> pointer-events: none or other CSS preventing interaction</li>
+                <li><strong>Component unmounting:</strong> Component re-rendering during drag</li>
+                <li><strong>Event propagation:</strong> Events being stopped or prevented</li>
+                <li><strong>Library version conflicts:</strong> Incompatible versions of @dnd-kit</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>Quick Fixes to Try:</h2>
+            <ol>
+                <li>Check browser console for errors</li>
+                <li>Verify @dnd-kit imports are correct</li>
+                <li>Add console.log statements to drag handlers</li>
+                <li>Check if DndContext is wrapping the correct elements</li>
+                <li>Verify useDraggable/useDroppable are used correctly</li>
+                <li>Test with a minimal drag and drop example</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        console.log('🔧 Drag and Drop Debug Test Loaded');
+        console.log('Check the admin dashboard calendar for drag and drop functionality');
+        console.log('Look for any JavaScript errors in the console');
+    </script>
+</body>
+</html>

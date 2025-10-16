@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { isSafari, getBrowserInfo } from '../utils/browserCompatibility';
+import WaitlistModal from './WaitlistModal';
 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -75,6 +76,13 @@ const BookingFlow = ({ isGuest = false }) => {
   const [promoLoading, setPromoLoading] = useState(false);
   const [roomPricing, setRoomPricing] = useState(null);
   const [roomPricingLoading, setRoomPricingLoading] = useState(false);
+  
+  // Booking agreement state
+  const [agreementAccepted, setAgreementAccepted] = useState(false);
+  
+  // Waitlist state
+  const [showWaitlistModal, setShowWaitlistModal] = useState(false);
+  const [capacityInfo, setCapacityInfo] = useState(null);
   
   // Booking completion states
   const [bookingStatus, setBookingStatus] = useState('pending'); // 'pending', 'processing', 'error'
@@ -464,14 +472,33 @@ const BookingFlow = ({ isGuest = false }) => {
   };
 
   // Date selection handler
-  const handleDateSelect = (date) => {
+  const handleDateSelect = async (date) => {
     setSelectedDate(date);
     setSelectedTimeSlot('');
     loadTimeSlots(date);
+    
+    // Check capacity for the selected date
+    try {
+      const response = await axios.get(`${API}/capacity/check?date=${date}`);
+      setCapacityInfo(response.data);
+    } catch (error) {
+      console.error('Failed to check capacity:', error);
+    }
   };
 
   // Complete booking
   const submitBooking = async () => {
+    if (!agreementAccepted) {
+      toast.error('Please accept the booking agreement to continue.');
+      return;
+    }
+    
+    // Check if we're at capacity
+    if (capacityInfo && !capacityInfo.has_capacity) {
+      setShowWaitlistModal(true);
+      return;
+    }
+    
     setLoading(true);
     setBookingStatus('processing');
     try {
@@ -1202,6 +1229,26 @@ const BookingFlow = ({ isGuest = false }) => {
                 {/* Initial Confirmation View */}
                 {bookingStatus === 'pending' && (
                   <div className="space-y-6">
+                    {/* Capacity Warning */}
+                    {capacityInfo && !capacityInfo.has_capacity && (
+                      <Alert className="border-orange-200 bg-orange-50">
+                        <AlertCircle className="h-4 w-4 text-orange-600" />
+                        <AlertDescription className="text-orange-800">
+                          <strong>We're currently at capacity for this date.</strong> You can still proceed to join our waitlist, and we'll contact you as soon as a spot opens up!
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    {/* Capacity Info */}
+                    {capacityInfo && capacityInfo.has_capacity && (
+                      <Alert className="border-green-200 bg-green-50">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <AlertDescription className="text-green-800">
+                          <strong>Great news!</strong> We have {capacityInfo.available_slots} spot{capacityInfo.available_slots !== 1 ? 's' : ''} available for this date.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
                     {/* Booking Summary */}
                     <Card className="border border-gray-200">
                       <CardHeader>
@@ -1299,6 +1346,49 @@ const BookingFlow = ({ isGuest = false }) => {
                         )}
                       </CardContent>
                     </Card>
+
+                    {/* Booking Agreement */}
+                    <Card className="border border-gray-200">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Booking Agreement</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="text-sm text-gray-700 leading-relaxed">
+                            <p className="mb-3">
+                              <strong>Recurring Service Policy:</strong>
+                            </p>
+                            <ul className="space-y-2 ml-4">
+                              <li className="flex items-start">
+                                <span className="mr-2">☐</span>
+                                <span>I understand that recurring service pricing requires a minimum of three consecutive cleanings.</span>
+                              </li>
+                              <li className="flex items-start">
+                                <span className="mr-2">☐</span>
+                                <span>If service is canceled before the third cleaning, a $200 early cancellation fee will be charged to the card on file.</span>
+                              </li>
+                              <li className="flex items-start">
+                                <span className="mr-2">☐</span>
+                                <span>I also understand that any concerns about the quality of service must be reported by the end of the day of the cleaning. Our company reserves the right to return and correct any issues to ensure satisfaction before any refund or adjustment is considered.</span>
+                              </li>
+                            </ul>
+                          </div>
+                          
+                          <div className="flex items-start space-x-3">
+                            <input
+                              type="checkbox"
+                              id="agreement"
+                              checked={agreementAccepted}
+                              onChange={(e) => setAgreementAccepted(e.target.checked)}
+                              className="mt-1 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                            />
+                            <label htmlFor="agreement" className="text-sm text-gray-700">
+                              I have read and agree to the terms and conditions above, including the recurring service policy and cancellation fees.
+                            </label>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 )}
               </div>
@@ -1330,7 +1420,7 @@ const BookingFlow = ({ isGuest = false }) => {
                 ) : (
                   <Button
                     onClick={submitBooking}
-                    disabled={loading || bookingStatus === 'processing'}
+                    disabled={loading || bookingStatus === 'processing' || !agreementAccepted}
                     className="btn-hover bg-green-600 hover:bg-green-700"
                   >
                     {loading ? (
@@ -1356,6 +1446,16 @@ const BookingFlow = ({ isGuest = false }) => {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Waitlist Modal */}
+      <WaitlistModal
+        isOpen={showWaitlistModal}
+        onClose={() => setShowWaitlistModal(false)}
+        selectedDate={selectedDate}
+        selectedTimeSlot={selectedTimeSlot}
+        houseSize={houseSize}
+        frequency={frequency}
+      />
     </div>
   );
 };

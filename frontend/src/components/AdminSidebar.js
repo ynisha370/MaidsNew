@@ -20,7 +20,9 @@ import {
   ChevronRight,
   Home,
   Users,
-  Bell
+  Bell,
+  Clock,
+  Ban
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -58,13 +60,13 @@ const AdminSidebar = ({
       description: 'Overview and statistics'
     },
     {
-      id: 'bookings',
-      label: 'Bookings',
+      id: 'subscriptions',
+      label: 'Subscriptions',
       icon: Calendar,
       shortcut: '2',
-      color: 'green',
-      count: counts.bookings || 0,
-      description: 'Manage all bookings'
+      color: 'emerald',
+      count: counts.subscriptions || 0,
+      description: 'Manage recurring subscriptions'
     },
     {
       id: 'calendar',
@@ -109,10 +111,18 @@ const AdminSidebar = ({
       description: 'Discount management'
     },
     {
+      id: 'customers',
+      label: 'Customers',
+      icon: Users,
+      shortcut: '8',
+      color: 'pink',
+      description: 'Customer management'
+    },
+    {
       id: 'reports',
       label: 'Reports',
       icon: TrendingUp,
-      shortcut: '8',
+      shortcut: '9',
       color: 'red',
       description: 'Analytics & insights'
     },
@@ -126,22 +136,22 @@ const AdminSidebar = ({
       description: 'Order management'
     },
     {
-      id: 'faqs',
-      label: 'FAQs',
-      icon: FileText,
+      id: 'waitlist',
+      label: 'Waitlist',
+      icon: Clock,
       shortcut: '0',
-      color: 'gray',
-      count: counts.faqs || 0,
-      description: 'Frequently asked questions'
+      color: 'amber',
+      count: counts.waitlist || 0,
+      description: 'Manage waitlist entries'
     },
     {
-      id: 'tickets',
-      label: 'Support Tickets',
-      icon: MessageSquare,
-      shortcut: 'Shift+1',
-      color: 'rose',
-      count: counts.tickets || 0,
-      description: 'Customer support'
+      id: 'cancellations',
+      label: 'Cancellations',
+      icon: Ban,
+      shortcut: '9',
+      color: 'red',
+      count: counts.cancellations || 0,
+      description: 'Manage cancellation requests'
     },
     {
       id: 'email-reminders',
@@ -165,6 +175,7 @@ const AdminSidebar = ({
     const colorMap = {
       blue: 'bg-blue-500 hover:bg-blue-600 text-white',
       green: 'bg-green-500 hover:bg-green-600 text-white',
+      emerald: 'bg-emerald-500 hover:bg-emerald-600 text-white',
       purple: 'bg-purple-500 hover:bg-purple-600 text-white',
       orange: 'bg-orange-500 hover:bg-orange-600 text-white',
       teal: 'bg-teal-500 hover:bg-teal-600 text-white',
@@ -182,6 +193,7 @@ const AdminSidebar = ({
     const colorMap = {
       blue: 'bg-blue-50 border-blue-200 text-blue-700',
       green: 'bg-green-50 border-green-200 text-green-700',
+      emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700',
       purple: 'bg-purple-50 border-purple-200 text-purple-700',
       orange: 'bg-orange-50 border-orange-200 text-orange-700',
       teal: 'bg-teal-50 border-teal-200 text-teal-700',
