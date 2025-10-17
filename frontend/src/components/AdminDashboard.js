@@ -51,6 +51,7 @@ import EmailReminders from './EmailReminders';
 import SMSReminderManagement from './SMSReminderManagement';
 import AdminSidebar from './AdminSidebar';
 import CreateBookingForm from './CreateBookingForm';
+import JobAssignmentManager from './JobAssignmentManager';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;

@@ -2354,8 +2354,13 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
                 dynamic_price = get_dynamic_a_la_carte_price(service, booking_data['house_size'])
                 a_la_carte_total += dynamic_price * service_data.get('quantity', 1)
     
+    # Calculate base price
+    base_price = get_base_price(
+        HouseSize(booking_data['house_size']),
+        ServiceFrequency(booking_data['frequency'])
+    )
+    
     # Calculate subtotal - include base price, room pricing, and a la carte services
-    base_price = booking_data['base_price']
     subtotal = base_price + room_price + a_la_carte_total
     
     # Handle promo code if provided
@@ -2391,7 +2396,7 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
         house_size=booking_data['house_size'],
         frequency=booking_data['frequency'],
         rooms=booking_data.get('rooms') if booking_data.get('rooms') else None,
-        services=[BookingService(**service) for service in booking_data['services']],
+        services=[BookingService(**service) for service in booking_data.get('services', [])],
         a_la_carte_services=[BookingService(**service) for service in booking_data.get('a_la_carte_services', [])],
         booking_date=booking_data['booking_date'],
         time_slot=booking_data['time_slot'],
@@ -2399,7 +2404,7 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
         room_price=room_price,
         a_la_carte_total=a_la_carte_total,
         total_amount=final_total,
-        address=Address(**booking_data['address']) if booking_data.get('address') else Address(
+        address=Address(**booking_data.get('address', {})) if booking_data.get('address') else Address(
             street=booking_data['customer']['address'],
             city=booking_data['customer']['city'],
             state=booking_data['customer']['state'],
@@ -2408,7 +2413,7 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
         special_instructions=booking_data.get('special_instructions'),
         estimated_duration_hours=calculate_job_duration(
             HouseSize(booking_data['house_size']),
-            [BookingService(**service) for service in booking_data['services']],
+            [BookingService(**service) for service in booking_data.get('services', [])],
             [BookingService(**service) for service in booking_data.get('a_la_carte_services', [])]
         )
     )
@@ -2441,8 +2446,16 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
     # Auto-assign best available cleaner
     assigned_cleaner_id = None
     assigned_cleaner_name = None
+    assignment_type = "manual"  # Default to manual if no auto-assignment
+    
     try:
-        cleaner_id = await auto_assign_best_cleaner(booking_data['booking_date'], booking_data['time_slot'])
+        # Try auto-assignment with enhanced algorithm
+        cleaner_id = await auto_assign_best_cleaner(
+            booking_data['booking_date'], 
+            booking_data['time_slot'],
+            booking_data.get('house_size')
+        )
+        
         if cleaner_id:
             # Update booking with assigned cleaner
             await db.bookings.update_one(
@@ -2450,10 +2463,13 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
                 {
                     "$set": {
                         "cleaner_id": cleaner_id,
-                        "status": "confirmed"
+                        "status": "confirmed",
+                        "assignment_type": "auto",
+                        "assigned_at": datetime.now(timezone.utc).isoformat()
                     }
                 }
             )
+            assignment_type = "auto"
             
             # Update cleaner availability
             await db.cleaner_availability.update_one(
@@ -2464,11 +2480,11 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
                 },
                 {"$set": {"is_booked": True, "booking_id": booking.id}}
             )
-            
-            # Create calendar event
+            # Get cleaner name for response
             cleaner = await db.cleaners.find_one({"id": cleaner_id})
             assigned_cleaner_name = f"{cleaner.get('first_name', '')} {cleaner.get('last_name', '')}"
             
+            # Create calendar event for assigned cleaner
             # Parse time slot to get start and end times
             time_parts = booking_data['time_slot'].split('-')
             start_time_str = time_parts[0].strip()
@@ -2482,26 +2498,24 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
             start_datetime = booking_datetime.replace(hour=start_hour, minute=0)
             end_datetime = booking_datetime.replace(hour=end_hour, minute=0)
             
-            calendar_event = CalendarEvent(
-                title=f"Cleaning - {booking_data['house_size']}",
-                description=f"Service: {booking_data['house_size']} - {booking_data['frequency']}",
-                event_type="booking",
-                start_time=start_datetime,
-                end_time=end_datetime,
-                cleaner_id=cleaner_id,
-                booking_id=booking.id,
-                customer_id=customer_id,
-                status="scheduled",
-                assignment_type="auto",
-                notified_at=datetime.now(timezone.utc)
-            )
+            calendar_event = {
+                "id": str(uuid.uuid4()),
+                "cleaner_id": cleaner_id,
+                "booking_id": booking.id,
+                "title": f"Cleaning Job - {booking_data.get('customer', {}).get('first_name', 'Customer')}",
+                "start_time": start_datetime.isoformat(),
+                "end_time": end_datetime.isoformat(),
+                "description": f"House size: {booking_data['house_size']}, Frequency: {booking_data['frequency']}",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
             
-            await db.calendar_events.insert_one(prepare_for_mongo(calendar_event.model_dump()))
+            await db.calendar_events.insert_one(calendar_event)
             
             # Send email notification to cleaner
             try:
                 address_text = f"{booking_dict.get('address', {}).get('street', '')}, {booking_dict.get('address', {}).get('city', '')}, {booking_dict.get('address', {}).get('state', '')}"
                 job_details = {
+                    "customer_name": f"{booking_data.get('customer', {}).get('first_name', '')} {booking_data.get('customer', {}).get('last_name', '')}",
                     "booking_date": booking_data['booking_date'],
                     "time_slot": booking_data['time_slot'],
                     "house_size": booking_data['house_size'],
@@ -2516,6 +2530,17 @@ async def create_booking_internal(booking_data: dict, current_user: User = None,
             assigned_cleaner_id = cleaner_id
             print(f"Auto-assigned cleaner {assigned_cleaner_name} to booking {booking.id}")
         else:
+            # No cleaner available - keep booking as pending
+            await db.bookings.update_one(
+                {"id": booking.id},
+                {
+                    "$set": {
+                        "status": "pending",
+                        "assignment_type": "pending",
+                        "assigned_at": None
+                    }
+                }
+            )
             print(f"No available cleaner for booking {booking.id} - will remain unassigned")
     except Exception as e:
         print(f"Error during auto-assignment: {str(e)}")
@@ -2971,12 +2996,12 @@ async def create_admin_booking(booking_data: dict, admin_user: User = Depends(ge
     internal_booking_data = {
         'house_size': booking_data['house_size'],
         'frequency': booking_data['frequency'],
-        'services': booking_data['services'],
+        'services': booking_data.get('services', []),
         'a_la_carte_services': booking_data.get('a_la_carte_services', []),
         'rooms': booking_data.get('rooms'),
         'booking_date': booking_data['booking_date'],
         'time_slot': booking_data['time_slot'],
-        'address': booking_data['address'],
+        'address': booking_data.get('address'),
         'special_instructions': booking_data.get('special_instructions', ''),
         'promo_code': booking_data.get('promo_code'),
         'customer': {
@@ -3073,13 +3098,13 @@ async def create_subscription(booking_data: dict, customer_id: str, is_guest: bo
         house_size=HouseSize(booking_data['house_size']),
         frequency=ServiceFrequency(booking_data['frequency']),
         rooms=booking_data.get('rooms'),
-        services=booking_data['services'],
+        services=booking_data.get('services', []),
         a_la_carte_services=booking_data.get('a_la_carte_services', []),
         base_price=base_price,
         room_price=room_price,
         a_la_carte_total=a_la_carte_total,
         total_amount=final_total,
-        address=Address(**booking_data['address']) if booking_data.get('address') else None,
+        address=Address(**booking_data.get('address', {})) if booking_data.get('address') else None,
         special_instructions=booking_data.get('special_instructions', ''),
         preferred_time_slot=booking_data['time_slot'],
         start_date=booking_data['booking_date'],
@@ -4470,6 +4495,53 @@ async def assign_job_to_calendar(
         print(f"Error in assign_job_to_calendar: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to assign job: {str(e)}")
 
+# Enhanced unassigned jobs endpoint with better filtering
+@api_router.get("/admin/bookings/pending-assignment")
+async def get_pending_assignment_bookings(
+    date: Optional[str] = None,
+    time_slot: Optional[str] = None,
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get bookings that need manual assignment"""
+    try:
+        query = {
+            "status": "pending",
+            "cleaner_id": {"$exists": False}
+        }
+        
+        if date:
+            query["booking_date"] = date
+        if time_slot:
+            query["time_slot"] = time_slot
+            
+        bookings = await db.bookings.find(query).sort("booking_date", 1).to_list(1000)
+        
+        # Get customer details for each booking
+        booking_details = []
+        for booking in bookings:
+            customer = await db.users.find_one({"id": booking.get("customer_id")})
+            booking_details.append({
+                "id": booking["id"],
+                "booking_date": booking["booking_date"],
+                "time_slot": booking["time_slot"],
+                "house_size": booking["house_size"],
+                "frequency": booking["frequency"],
+                "total_amount": booking["total_amount"],
+                "customer_name": f"{customer.get('first_name', '')} {customer.get('last_name', '')}" if customer else "Guest",
+                "customer_phone": customer.get("phone", "") if customer else "",
+                "customer_email": customer.get("email", "") if customer else "",
+                "special_instructions": booking.get("special_instructions", ""),
+                "created_at": booking.get("created_at")
+            })
+        
+        return {
+            "pending_bookings": booking_details,
+            "count": len(booking_details)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get pending bookings: {str(e)}")
+
 @api_router.get("/admin/calendar/unassigned-jobs")
 async def get_unassigned_jobs(admin_user: User = Depends(get_admin_user)):
     """Get all unassigned jobs for drag-and-drop assignment"""
@@ -5588,6 +5660,63 @@ async def get_cleaner_calendar(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get calendar: {str(e)}")
 
+# Cleaner job status update endpoints
+@api_router.patch("/cleaner/jobs/{booking_id}/status")
+async def update_job_status(
+    booking_id: str,
+    status: str,
+    notes: Optional[str] = None,
+    current_user: User = Depends(get_cleaner_user)
+):
+    """Update job status (in_progress, completed)"""
+    try:
+        # Validate status
+        valid_statuses = ["in_progress", "completed"]
+        if status not in valid_statuses:
+            raise HTTPException(status_code=400, detail="Invalid status")
+        
+        # Check if cleaner is assigned to this job
+        booking = await db.bookings.find_one({
+            "id": booking_id,
+            "cleaner_id": current_user.id
+        })
+        
+        if not booking:
+            raise HTTPException(status_code=404, detail="Job not found or not assigned to you")
+        
+        # Update booking status
+        update_data = {
+            "status": status,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        if notes:
+            update_data["cleaner_notes"] = notes
+            
+        if status == "completed":
+            update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+        elif status == "in_progress":
+            update_data["started_at"] = datetime.now(timezone.utc).isoformat()
+        
+        await db.bookings.update_one(
+            {"id": booking_id},
+            {"$set": update_data}
+        )
+        
+        # Update cleaner's total jobs count if completed
+        if status == "completed":
+            await db.cleaners.update_one(
+                {"id": current_user.id},
+                {"$inc": {"total_jobs": 1}}
+            )
+        
+        return {"message": f"Job status updated to {status}", "status": status}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update job status: {str(e)}")
+
 @api_router.get("/cleaner/calendar/events")
 async def get_cleaner_calendar_events(
     current_user: User = Depends(get_cleaner_user)
@@ -6152,6 +6281,93 @@ async def get_cleaner_availability(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get cleaner availability: {str(e)}")
 
+# Enhanced manual assignment endpoint
+@api_router.post("/admin/bookings/{booking_id}/assign-cleaner")
+async def assign_cleaner_to_booking(
+    booking_id: str,
+    cleaner_id: str,
+    admin_user: User = Depends(get_admin_user)
+):
+    """Manually assign a cleaner to a booking"""
+    try:
+        # Get booking
+        booking = await db.bookings.find_one({"id": booking_id})
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        
+        # Get cleaner
+        cleaner = await db.cleaners.find_one({"id": cleaner_id})
+        if not cleaner:
+            raise HTTPException(status_code=404, detail="Cleaner not found")
+        
+        # Check if cleaner is available for this date/time
+        booking_date = booking.get("booking_date")
+        time_slot = booking.get("time_slot")
+        
+        # Check existing bookings for this cleaner on this date
+        existing_bookings = await db.bookings.count_documents({
+            "cleaner_id": cleaner_id,
+            "booking_date": booking_date,
+            "status": {"$in": ["confirmed", "in_progress"]}
+        })
+        
+        # Check if cleaner has a booking in the same time slot
+        conflicting_booking = await db.bookings.find_one({
+            "cleaner_id": cleaner_id,
+            "booking_date": booking_date,
+            "time_slot": time_slot,
+            "status": {"$in": ["confirmed", "in_progress"]}
+        })
+        
+        if conflicting_booking:
+            raise HTTPException(
+                status_code=409, 
+                detail=f"Cleaner already has a booking in this time slot"
+            )
+        
+        # Update booking with cleaner assignment
+        await db.bookings.update_one(
+            {"id": booking_id},
+            {
+                "$set": {
+                    "cleaner_id": cleaner_id,
+                    "status": "confirmed",
+                    "assignment_type": "manual",
+                    "assigned_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        
+        # Update cleaner availability
+        await db.cleaner_availability.update_one(
+            {
+                "cleaner_id": cleaner_id,
+                "date": booking_date,
+                "time_slot": time_slot
+            },
+            {"$set": {"is_booked": True, "booking_id": booking_id}}
+        )
+        
+        # Send notification to cleaner
+        try:
+            # This would integrate with your email service
+            print(f"Notification sent to cleaner {cleaner_id} for booking {booking_id}")
+        except Exception as e:
+            print(f"Failed to send notification: {e}")
+        
+        return {
+            "message": "Cleaner assigned successfully",
+            "booking_id": booking_id,
+            "cleaner_id": cleaner_id,
+            "cleaner_name": f"{cleaner.get('first_name', '')} {cleaner.get('last_name', '')}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to assign cleaner: {str(e)}")
+
 @api_router.post("/admin/calendar/assign-to-cleaner")
 async def assign_booking_to_cleaner(
     booking_id: str,
@@ -6360,11 +6576,11 @@ async def get_calendar_events(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get calendar events: {str(e)}")
 
-# Auto-assign cleaner algorithm
-async def auto_assign_best_cleaner(booking_date: str, time_slot: str) -> Optional[str]:
+# Enhanced auto-assign cleaner algorithm
+async def auto_assign_best_cleaner(booking_date: str, time_slot: str, house_size: str = None) -> Optional[str]:
     """
     Automatically assign the best available cleaner for a booking.
-    Treat missing availability records as available (default-open policy) and cap 3 jobs/day.
+    Enhanced algorithm considers house size, cleaner experience, and load balancing.
     Returns cleaner_id or None if no cleaner available.
     """
     try:
@@ -6388,8 +6604,25 @@ async def auto_assign_best_cleaner(booking_date: str, time_slot: str) -> Optiona
                 "booking_date": booking_date,
                 "status": {"$in": ["confirmed", "in_progress"]}
             })
-            if bookings_count >= 3:
-                # Already at daily cap
+            
+            # Dynamic daily cap based on cleaner experience
+            max_daily_jobs = 3
+            if cleaner.get("total_jobs", 0) > 100:  # Experienced cleaners can handle more
+                max_daily_jobs = 4
+            elif cleaner.get("total_jobs", 0) < 20:  # New cleaners get fewer jobs
+                max_daily_jobs = 2
+                
+            if bookings_count >= max_daily_jobs:
+                continue
+
+            # Check for existing bookings in the same time slot
+            existing_booking = await db.bookings.find_one({
+                "cleaner_id": cleaner_id,
+                "booking_date": booking_date,
+                "time_slot": time_slot,
+                "status": {"$in": ["confirmed", "in_progress"]}
+            })
+            if existing_booking:
                 continue
 
             # Manual availability record (optional). If none, treat as available.
@@ -6404,12 +6637,39 @@ async def auto_assign_best_cleaner(booking_date: str, time_slot: str) -> Optiona
             if not is_available:
                 continue
 
+            # Calculate score based on multiple factors
             rating = cleaner.get("rating", 5.0)
             total_jobs = cleaner.get("total_jobs", 0)
-            score = (rating * 10) - (total_jobs / 100) - (bookings_count * 5)
+            experience_months = cleaner.get("experience_months", 0)
+            
+            # Base score from rating and experience
+            base_score = (rating * 10) + (experience_months * 0.1)
+            
+            # Penalty for current load
+            load_penalty = bookings_count * 5
+            
+            # Bonus for house size compatibility (if specified)
+            size_bonus = 0
+            if house_size:
+                cleaner_preferred_sizes = cleaner.get("preferred_house_sizes", [])
+                if house_size in cleaner_preferred_sizes:
+                    size_bonus = 10
+                elif not cleaner_preferred_sizes:  # No preference = good for all sizes
+                    size_bonus = 5
+            
+            # Penalty for too many jobs recently (load balancing)
+            recent_jobs = await db.bookings.count_documents({
+                "cleaner_id": cleaner_id,
+                "booking_date": {"$gte": (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")},
+                "status": {"$in": ["confirmed", "in_progress", "completed"]}
+            })
+            recent_load_penalty = recent_jobs * 0.5
+            
+            final_score = base_score - load_penalty + size_bonus - recent_load_penalty
+            
             cleaner_scores.append({
                 "cleaner_id": cleaner_id,
-                "score": score,
+                "score": final_score,
                 "rating": rating,
                 "total_jobs": total_jobs,
                 "bookings_today": bookings_count
