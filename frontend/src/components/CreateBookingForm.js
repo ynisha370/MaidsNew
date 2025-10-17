@@ -184,7 +184,7 @@ const CreateBookingForm = ({ customer, services, onSubmit, onCancel, existingBoo
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    if (!formData.house_size || !formData.booking_date || !formData.time_slot || formData.services.length === 0) {
+    if (!formData.house_size || !formData.booking_date || !formData.time_slot) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -279,7 +279,7 @@ const CreateBookingForm = ({ customer, services, onSubmit, onCancel, existingBoo
 
           {/* Standard Services */}
           <div>
-            <Label>Standard Services *</Label>
+            <Label>Standard Services</Label>
             <div className="grid grid-cols-2 gap-2 mt-2">
               {standardServices.map(service => (
                 <div key={service.id} className="flex items-center space-x-2">

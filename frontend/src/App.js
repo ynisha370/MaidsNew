@@ -22,6 +22,7 @@ import PaymentPage from "./components/PaymentPage";
 import Notes from "./components/Notes";
 import PaymentHistory from "./components/PaymentHistory";
 import UpcomingAppointments from "./components/UpcomingAppointments";
+import CustomerSubscriptions from "./components/CustomerSubscriptions";
 import GoogleCallback from "./components/GoogleCallback";
 import { Toaster } from "./components/ui/sonner";
 
@@ -180,6 +181,11 @@ function AppContent() {
         <Route path="/upcoming" element={
           <ProtectedRoute>
             <UpcomingAppointments />
+          </ProtectedRoute>
+        } />
+        <Route path="/subscriptions" element={
+          <ProtectedRoute>
+            <CustomerSubscriptions />
           </ProtectedRoute>
         } />
         <Route path="/confirmation/:bookingId" element={

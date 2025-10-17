@@ -3041,12 +3041,18 @@ async def create_subscription(booking_data: dict, customer_id: str, is_guest: bo
     # Calculate room price
     room_price = 0.0
     if booking_data.get('rooms'):
-        room_price = calculate_room_price(booking_data['rooms'])
+        frequency = ServiceFrequency(booking_data.get('frequency', 'one_time'))
+        room_price = calculate_room_pricing(booking_data['rooms'], frequency)
     
     # Calculate a la carte total
     a_la_carte_total = 0.0
     if booking_data.get('a_la_carte_services'):
-        a_la_carte_total = calculate_a_la_carte_total(booking_data['a_la_carte_services'])
+        for service_data in booking_data['a_la_carte_services']:
+            service = await db.services.find_one({"id": service_data['service_id']})
+            if service:
+                # Use dynamic pricing for Dust Baseboards based on the booking house size
+                dynamic_price = get_dynamic_a_la_carte_price(service, booking_data['house_size'])
+                a_la_carte_total += dynamic_price * service_data.get('quantity', 1)
     
     # Calculate final total
     final_total = base_price + room_price + a_la_carte_total
@@ -3414,6 +3420,90 @@ async def get_customer_subscriptions(current_user: User = Depends(get_current_us
         return subscriptions
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve subscriptions: {str(e)}")
+
+@api_router.post("/customer/subscriptions/{subscription_id}/pause")
+async def pause_customer_subscription(subscription_id: str, current_user: User = Depends(get_current_user)):
+    """Pause a customer's subscription"""
+    try:
+        # Verify the subscription belongs to the current user
+        subscription = await db.subscriptions.find_one({
+            "id": subscription_id,
+            "customer_id": current_user.id
+        })
+        
+        if not subscription:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        
+        if subscription["status"] != "active":
+            raise HTTPException(status_code=400, detail="Only active subscriptions can be paused")
+        
+        # Update subscription status
+        await db.subscriptions.update_one(
+            {"id": subscription_id},
+            {"$set": {"status": "paused", "updated_at": datetime.now(timezone.utc)}}
+        )
+        
+        return {"message": "Subscription paused successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to pause subscription: {str(e)}")
+
+@api_router.post("/customer/subscriptions/{subscription_id}/resume")
+async def resume_customer_subscription(subscription_id: str, current_user: User = Depends(get_current_user)):
+    """Resume a customer's subscription"""
+    try:
+        # Verify the subscription belongs to the current user
+        subscription = await db.subscriptions.find_one({
+            "id": subscription_id,
+            "customer_id": current_user.id
+        })
+        
+        if not subscription:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        
+        if subscription["status"] != "paused":
+            raise HTTPException(status_code=400, detail="Only paused subscriptions can be resumed")
+        
+        # Update subscription status
+        await db.subscriptions.update_one(
+            {"id": subscription_id},
+            {"$set": {"status": "active", "updated_at": datetime.now(timezone.utc)}}
+        )
+        
+        return {"message": "Subscription resumed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to resume subscription: {str(e)}")
+
+@api_router.post("/customer/subscriptions/{subscription_id}/cancel")
+async def cancel_customer_subscription(subscription_id: str, current_user: User = Depends(get_current_user)):
+    """Cancel a customer's subscription"""
+    try:
+        # Verify the subscription belongs to the current user
+        subscription = await db.subscriptions.find_one({
+            "id": subscription_id,
+            "customer_id": current_user.id
+        })
+        
+        if not subscription:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        
+        if subscription["status"] == "cancelled":
+            raise HTTPException(status_code=400, detail="Subscription is already cancelled")
+        
+        # Update subscription status
+        await db.subscriptions.update_one(
+            {"id": subscription_id},
+            {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc)}}
+        )
+        
+        return {"message": "Subscription cancelled successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to cancel subscription: {str(e)}")
 
 @api_router.get("/customer/next-appointment")
 async def get_next_appointment(current_user: User = Depends(get_current_user)):

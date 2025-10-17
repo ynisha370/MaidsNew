@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, CreditCard, Home, Phone, FileText, Settings, Plus, Edit, DollarSign, History, MessageSquare, XCircle } from 'lucide-react';
+import { Calendar, Clock, CreditCard, Home, Phone, FileText, Settings, Plus, Edit, DollarSign, History, MessageSquare, XCircle, RefreshCw } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -328,6 +328,14 @@ const CustomerDashboard = () => {
                 >
                   <Calendar className="mr-2" size={16} />
                   Upcoming Appointments
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => navigate('/subscriptions')}
+                >
+                  <RefreshCw className="mr-2" size={16} />
+                  My Subscriptions
                 </Button>
                 <Button
                   variant="outline"
